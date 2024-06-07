@@ -9,6 +9,7 @@
 #define PCM9211_INC_PCM9211_HPP_
 
 #include <stdint.h>
+#include <stdio.h>
 #include "main.h"
 
 //#define	i2c_mode	1				//un-comment this if you are using i2c communication
@@ -66,13 +67,15 @@ public:
 	virtual ~PCM9211();
 
 //	uint8_t PCM9211_Init(I2C_HandleTypeDef *i2c, uint8_t address);
-	uint8_t PCM9211_Init();//SPI_HandleTypeDef *spi, PCM9211_Mode_t mode);
-private:
-	void PCM9211_SelectSource(uint8_t source);
+	uint8_t PCM9211_Init(uint8_t state);//SPI_HandleTypeDef *spi, PCM9211_Mode_t mode);
 	uint8_t PCM9211_SamplingFreq(void);
-	uint32_t PCM9211_DataInfromation();
 	uint8_t Read_(uint8_t reg);
 	void Write_(uint8_t reg, uint8_t data);
+	void Write_regMask(uint8_t reg, uint8_t data);
+	uint32_t PCM9211_DataInfromation();
+private:
+	uint8_t Write_REG(uint8_t reg, uint8_t data);
+	void PCM9211_SelectSource(uint8_t source);
 	void PCM9211_SS(PCM9211_Mode_t state);
 
 

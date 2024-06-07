@@ -1,0 +1,72 @@
+[0.000] initConfigParams():  Configuration flags start
+[0.000] initConfigParams():   external-init                  false
+[0.000] initConfigParams():   pend-halt-timeout              (null)
+[0.000] initConfigParams():   halt                           false
+[0.000] initConfigParams():   config-file                    ""
+[0.000] initConfigParams():   persistent                     false
+[0.000] initConfigParams():  +log-file                       "C:\Users\shine\STM32CubeIDE\workspace_1.14.0\TOSLINK_Switcher\Debug_LOG.txt.txt"
+[0.000] initConfigParams():  +log-level                      31
+[0.000] initConfigParams():  +port-number                    61234
+[0.000] initConfigParams():  +verbose                        true
+[0.000] initConfigParams():   refresh-delay                  15
+[0.000] initConfigParams():  +verify                         true
+[0.000] initConfigParams():  +swd                            true
+[0.000] initConfigParams():  +swo-port                       61235
+[0.000] initConfigParams():   cpu-clock                      8000000
+[0.000] initConfigParams():   swo-clock-div                  128
+[0.000] initConfigParams():  +initialize-reset               true
+[0.000] initConfigParams():   debuggers                      false
+[0.000] initConfigParams():   serial-number                  ""
+[0.000] initConfigParams():  +apid                           0
+[0.000] initConfigParams():   attach                         false
+[0.000] initConfigParams():   shared                         false
+[0.000] initConfigParams():   erase-all                      false
+[0.000] initConfigParams():   memory-map                     ""
+[0.000] initConfigParams():   ext-memory-loaders             false
+[0.000] initConfigParams():   extload_init                   (null)
+[0.000] initConfigParams():   extload                        (null)
+[0.000] initConfigParams():  +stm32cubeprogrammer-path       "C:\ST\STM32CubeIDE_1.14.0\STM32CubeIDE\plugins\com.st.stm32cube.ide.mcu.externaltools.cubeprogrammer.win32_2.1.201.202404072231\tools\bin"
+[0.000] initConfigParams():   temp-path                      ""
+[0.000] initConfigParams():   preserve-temps                 false
+[0.000] initConfigParams():   frequency                      0
+[0.000] initConfigParams():   licenses                       false
+[0.000] initConfigParams():   ignore-rest                    false
+[0.000] initConfigParams():   version                        false
+[0.000] initConfigParams():   help                           false
+[0.000] initConfigParams():  Configuration flags end
+[0.001] init():  STMicroelectronics ST-LINK GDB server. Version 7.7.0
+Copyright (c) 2024, STMicroelectronics. All rights reserved.
+[0.014] openDevice():  COM frequency = 4000 kHz
+[0.014] openDevice():  Target connection mode: Under reset
+[0.016] openDevice():  Target connection failed
+[0.016] openDevice():  COM frequency = 1800 kHz
+[0.016] openDevice():  Target connection mode: Under reset
+[0.019] openDevice():  Target connection failed
+[0.019] openDevice():  COM frequency = 950 kHz
+[0.019] openDevice():  Target connection mode: Under reset
+[0.022] openDevice():  Target connection failed
+[0.023] openDevice():  COM frequency = 480 kHz
+[0.023] openDevice():  Target connection mode: Under reset
+[0.027] openDevice():  Target connection failed
+[0.028] openDevice():  COM frequency = 240 kHz
+[0.028] openDevice():  Target connection mode: Under reset
+[0.035] openDevice():  Target connection failed
+[0.035] openDevice():  COM frequency = 125 kHz
+[0.035] openDevice():  Target connection mode: Under reset
+[0.049] openDevice():  Target connection failed
+[0.050] openDevice():  COM frequency = 100 kHz
+[0.050] openDevice():  Target connection mode: Under reset
+[0.067] openDevice():  Target connection failed
+[0.067] openDevice():  COM frequency = 50 kHz
+[0.067] openDevice():  Target connection mode: Under reset
+[0.098] openDevice():  Target connection failed
+[0.099] openDevice():  COM frequency = 25 kHz
+[0.099] openDevice():  Target connection mode: Under reset
+[0.160] openDevice():  Target connection failed
+[0.160] openDevice():  COM frequency = 5 kHz
+[0.160] openDevice():  Target connection mode: Under reset
+[0.452] openDevice():  Target connection failed
+[0.452] openDevice():  Target no device found
+[0.452] initServerContext():  
+Error in initializing ST-LINK device.
+Reason: [0.452] initServerContext():  No device found on target.

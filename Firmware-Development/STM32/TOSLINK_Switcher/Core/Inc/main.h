@@ -60,10 +60,13 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define SW2_S_Pin GPIO_PIN_13
 #define SW2_S_GPIO_Port GPIOC
+#define SW2_S_EXTI_IRQn EXTI15_10_IRQn
 #define SW2_V__Pin GPIO_PIN_14
 #define SW2_V__GPIO_Port GPIOC
+#define SW2_V__EXTI_IRQn EXTI15_10_IRQn
 #define SW2_V_C15_Pin GPIO_PIN_15
 #define SW2_V_C15_GPIO_Port GPIOC
+#define SW2_V_C15_EXTI_IRQn EXTI15_10_IRQn
 #define LED4_Pin GPIO_PIN_0
 #define LED4_GPIO_Port GPIOC
 #define LED5_Pin GPIO_PIN_1
@@ -74,10 +77,13 @@ void Error_Handler(void);
 #define LED7_GPIO_Port GPIOC
 #define SW3_S_Pin GPIO_PIN_0
 #define SW3_S_GPIO_Port GPIOA
+#define SW3_S_EXTI_IRQn EXTI0_IRQn
 #define SW3_V__Pin GPIO_PIN_1
 #define SW3_V__GPIO_Port GPIOA
+#define SW3_V__EXTI_IRQn EXTI1_IRQn
 #define SW3_V_A2_Pin GPIO_PIN_2
 #define SW3_V_A2_GPIO_Port GPIOA
+#define SW3_V_A2_EXTI_IRQn EXTI2_IRQn
 #define LED9_Pin GPIO_PIN_3
 #define LED9_GPIO_Port GPIOA
 #define SS_T_Pin GPIO_PIN_4
@@ -128,24 +134,32 @@ void Error_Handler(void);
 #define I2S3_LRCK_GPIO_Port GPIOA
 #define SW4_S_Pin GPIO_PIN_10
 #define SW4_S_GPIO_Port GPIOC
+#define SW4_S_EXTI_IRQn EXTI15_10_IRQn
 #define SW4_V__Pin GPIO_PIN_11
 #define SW4_V__GPIO_Port GPIOC
+#define SW4_V__EXTI_IRQn EXTI15_10_IRQn
 #define SW4_V_C12_Pin GPIO_PIN_12
 #define SW4_V_C12_GPIO_Port GPIOC
+#define SW4_V_C12_EXTI_IRQn EXTI15_10_IRQn
 #define LED1_Pin GPIO_PIN_2
 #define LED1_GPIO_Port GPIOD
 #define I2S3_BCK_Pin GPIO_PIN_3
 #define I2S3_BCK_GPIO_Port GPIOB
 #define SW1_S_Pin GPIO_PIN_4
 #define SW1_S_GPIO_Port GPIOB
+#define SW1_S_EXTI_IRQn EXTI4_IRQn
 #define I2S3_DIN_Pin GPIO_PIN_5
 #define I2S3_DIN_GPIO_Port GPIOB
 #define SW1_V__Pin GPIO_PIN_6
 #define SW1_V__GPIO_Port GPIOB
+#define SW1_V__EXTI_IRQn EXTI9_5_IRQn
 #define SW1_V_B7_Pin GPIO_PIN_7
 #define SW1_V_B7_GPIO_Port GPIOB
+#define SW1_V_B7_EXTI_IRQn EXTI9_5_IRQn
 #define LED3_Pin GPIO_PIN_8
 #define LED3_GPIO_Port GPIOB
+#define COP_Pin GPIO_PIN_9
+#define COP_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

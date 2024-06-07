@@ -1,0 +1,87 @@
+#**************************************
+#this script is for SPDIF-->RXIN2-->DIR-->MainOutput, Record sound from SPDIF to PC through TAS1020
+
+#So
+#1, Chose RXIN2 to DIR
+#2, Active DIR
+#3, chose DIR output as Mainoutput's source.
+
+#Also HW modification
+#1, Flying to High Level(3.3V) to make sure U7's output is Hi-Z
+#or 2, TAS1020 output logic high on P1.2 I2S enable signal. 
+#**************************************
+
+
+#System RST Control
+#w 80 40 00
+w 80 40 33
+w 80 40 C0
+
+#XTI Source, Clock (SCK/BCK/LRCK) Frequency Setting
+# XTI CLK source 12.288 and BCK 3.072, LRCK 48k = XTI/512
+w 80 31 1A
+w 80 33 22
+w 80 20 00
+w 80 24 00
+#ADC clock source is chosen by REG42
+w 80 26 81
+
+#XTI Source, Secondary Bit/LR Clock (SBCK/SLRCK) Frequency Setting
+w 80 33 22
+
+
+#*********************************************************
+#-------------------------------Start DIR settings---------------------------------------
+#REG. 21h, DIR Receivable Incoming Biphase's Sampling Frequency Range Setting
+w 80 21 00
+
+#REG. 22h, DIR CLKSTP and VOUT delay
+w 80 22 01
+
+#REG. 23h, DIR OCS start up wait time and Process for Parity Error Detection and ERROR Release Wait Time Setting
+w 80 23 04
+
+# REG 27h DIR Acceptable fs Range Setting & Mask
+w 80 27 00
+
+# REG 2Fh, DIR Output Data Format, 24bit I2S mode
+w 80 2F 04
+
+# REG. 30h, DIR Recovered System Clock (SCK) Ratio Setting
+w 80 30 02
+
+#REG. 32h, DIR Source, Secondary Bit/LR Clock (SBCK/SLRCK) Frequency Setting
+w 80 32 22
+
+#REG 34h DIR Input Biphase Signal Source Select and RXIN01 Coaxial Amplifier
+#--PWR up amplifier, select RXIN0
+w 80 34 00
+#--PWR up amplifier, select RXIN1
+#w 80 34 01
+#--PWR down amplifier, Select RXIN2
+#w 80 34 C2
+
+#REG. 37h, Port Sampling Frequency Calculator Measurement Target Setting, Cal and DIR Fs
+w 80 37 00
+#REG 38h rd DIR Fs
+r 80 38 01
+#***********************************************************
+#------------------------------------ End DIR settings------------------------------------------
+
+
+#***********************************************************
+#---------------------------------Start  MainOutput Settings--------------------------------------
+#MainOutput
+#REG. 6Ah, Main Output & AUXOUT Port Control
+w 80 6A 00
+
+#REG. 6Bh, Main Output Port (SCKO/BCK/LRCK/DOUT) Source Setting
+w 80 6B 11
+
+#REG. 6Dh, MPIO_B & Main Output Port Hi-Z Control
+w 80 6D 00
+#***********************************************************
+#------------------------------------ End MainOutput settings------------------------------------------
+
+# read back all registers to ensure GUI integrity
+r 80 20 5E
