@@ -17,8 +17,30 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef struct{
-	uint16_t output_pin;
+
+CHANNEL_BUFFERS_t channel_buffers;				// to hold S/PDIF channel information
+//CHANNEL_BUFFERS_t channel_buffers_tx =
+//{
+//		.REG_A = 0x00,					// 0b00000000
+//		.REG_B = 0xD0,					// 0b						// receiving 0xb8(0b10111000) from RX
+//		.REG_C = 0x00,
+//		.REG_D = 0x00,					// 0b00000000
+//		.REG_E = 0x00,
+//		.REG_F = 0x00
+//};
+//CHANNEL_BUFFERS_t channel_buffers_blank =
+//{
+//		.REG_A = 0x00,
+//		.REG_B = 0x00,
+//		.REG_C = 0x00,
+//		.REG_D = 0x00,
+//		.REG_E = 0x00,
+//		.REG_F = 0x00
+//};
+
+typedef struct
+{
+	uint16_t output_pin;				// have to figure this out
 	uint8_t board_volume;
 }output_routes_t;
 
@@ -39,19 +61,21 @@ output_routes_t opt1 = {
 		.board_volume = 100
 };
 
-struct current_route_s{
+struct current_route_s
+{
 	output_routes_t* route;
 	uint8_t state;
 };
 
-typedef enum STATES{
+typedef enum STATES
+{
 	ENABLE_OPT = 1,
 	DISABLE_OPT,
 	VOLUME_INCREASE,
 	VOLUME_DECREASE
-}STATES_T;
+}STATES_t;
 
-current_route_s current_route = {NULL, DISABLE_OPT};
+current_route_s current_route = { NULL, DISABLE_OPT };
 
 SS_Conf tx_conf = {
 	.port = SS_T_GPIO_Port,
@@ -73,13 +97,48 @@ SS_Conf rx_conf = {
 #define OPT1	0x3			// 0b0011
 #define OPT2	0x1			// 0b0001
 #define OPT3	0x2			// 0b0010
-#define OPT4	0x4			// 0b0100			//  ( EN | S0 | S1 | S2)
-#define OPT_DISABLE		0x8	// 0b1000
+#define OPT4	0x4			// 0b0100
+#define OPT_DISABLE		0x8	// 0b1000			//  ( EN | S0 | S1 | S2)
 #define ERROR_READ_RX_PCM	HAL_GPIO_ReadPin(ERROR_INT0_R_GPIO_Port, ERROR_INT0_R_Pin)
 
 uint32_t rxBuffer[NUM_FRAMES];
-uint32_t txBuffer[NUM_FRAMES];
-//float volume = 0.5; // Volume factor (0.0 to 1.0), default value is 0.5
+//uint32_t txBuffer[NUM_FRAMES];
+
+uint32_t txBuffer[NUM_FRAMES] = {									//	1KHz Sine wave at 44.1KHz sampling rate
+16383,  18709,  20989,  23174,  25223,  27092,  28744,  30146,
+31268,  32089,  32592,  32766,  32609,  32122,  31317,  30209,
+28820,  27180,  25321,  23281,  21100,  18825,  16500,  14172,
+11890,   9698,   7642,   5763,   4099,   2684,   1547,    710,
+191,      0,    142,    612,   1402,   2495,   3870,   5499,
+7348,   9380,  11554,  13826,  16150,  18478,  20764,  22961,
+25025,  26914,  28590,  30018,  31169,  32021,  32556,  32764,
+32639,  32185,  31411,  30332,  28971,  27354,  25515,  23492,
+21324,  19055,  16733,  14404,  12114,   9912,   7840,   5942,
+4255,   2814,   1647,    780,    229,      5,    113,    550,
+1309,   2373,   3721,   5325,   7154,   9169,  11331,  13596,
+15916,  18246,  20539,  22747,  24826,  26734,  28433,  29887,
+31067,  31950,  32518,  32758,  32667,  32245,  31503,  30453,
+29119,  27527,  25708,  23701,  21546,  19285,  16966,  14636,
+12340,  10127,   8040,   6122,   4413,   2946,   1751,    853,
+269,     12,     87,    492,   1219,   2253,   3574,   5154,
+6962,   8961,  11110,  13366,  15683,  18014,  20313,  22531,
+24625,  26552,  28273,  29753,  30962,  31876,  32475,  32749,
+32691,  32302,  31591,  30572,  29265,  27697,  25899,  23909,
+21767,  19515,  17200,  14868,  12567,  10343,   8242,   6306,
+4573,   3081,   1857,    929,    313,     23,     64,    437,
+1132,   2136,   3430,   4985,   6772,   8753,  10889,  13137,
+15450,  17782,  20086,  22314,  24423,  26368,  28111,  29617,
+30854,  31798,  32430,  32736,  32712,  32356,  31676,  30687,
+29408,  27864,  26088,  24116,  21986,  19744,  17433,  15100,
+12794,  10561,   8445,   6491,   4736,   3218,   1967,   1008,
+360,     54,     30,    336,   1048,   2023,   3288,   4819,
+6584,   8548,  10670,  12908,  15217,  17549,  19858,  22096,
+24218,  26182,  27947,  29478,  30743,  31718,  32381,  32721,
+32729,  32406,  31758,  30799,  29548,  28030,  26275,  24321,
+22205,  19972,  17666,  15333,  13022,  10780,   8650,   6678,
+4902,   3358,   2079,   1090,    410,     54,     30,    336
+};
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -90,18 +149,18 @@ uint32_t txBuffer[NUM_FRAMES];
 /* Private variables ---------------------------------------------------------*/
 I2S_HandleTypeDef hi2s2;
 I2S_HandleTypeDef hi2s3;
-DMA_HandleTypeDef hdma_spi2_rx;
-DMA_HandleTypeDef hdma_spi3_tx;
+DMA_HandleTypeDef hdma_spi2_rx;										// I2S SPI
+DMA_HandleTypeDef hdma_spi3_tx;										// I2S SPI
 
-SPI_HandleTypeDef hspi1;
+SPI_HandleTypeDef hspi1;											// Communication SPI with PCM ICs
 TIM_HandleTypeDef htim11;
 
-PCM9211 pcmRX(&hspi1, PCM_RX, &rx_conf);
-PCM9211 pcmTX(&hspi1, PCM_TX, &tx_conf);
+PCM9211 pcmRX(&hspi1, PCM_RX, &rx_conf, &channel_buffers);			// Receiving PCM IC Object
+PCM9211 pcmTX(&hspi1, PCM_TX, &tx_conf, &channel_buffers);			// Transmitting PCM IC Object
 
 /* USER CODE BEGIN PV */
-volatile uint8_t RXdma_started = 0;					// disables false RxHalfCpltCallback at startup
-volatile uint8_t RXPCM_ERROR_flag = DISABLE_OPT;				// flag for activating TX PCM IC
+volatile uint8_t RXdma_started = 0;							// disables false RxHalfCpltCallback at startup
+volatile uint8_t RXPCM_ERROR_flag = DISABLE_OPT;			// flag for activating TX PCM IC
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,9 +172,9 @@ static void MX_I2S2_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM11_Init(void);
-void volume_control(STATES_T state);
+void volume_control(STATES_t state);
 void route_Control(GPIO_TypeDef* GPIOx, uint8_t config);
-void Timer_Control(STATES_T state);
+void Timer_Control(STATES_t state);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -147,7 +206,8 @@ void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
 //			  Error_Handler();
 //			}
     	}
-    	else{
+    	else
+    	{
     		RXdma_started = 1;
     	}
     }
@@ -207,7 +267,8 @@ void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
 
 // HAL TIM Callback function
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-    if (htim->Instance == TIM11) {
+    if (htim->Instance == TIM11)
+    {
     	Timer_Control(DISABLE_OPT);
     }
 }
@@ -219,44 +280,52 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     if (GPIO_Pin == SW1_S_Pin)
     {
     	current_route.route = &opt1;
-    	if(current_route.state == DISABLE_OPT || current_route.route != &opt1){
+    	if(current_route.state == DISABLE_OPT || current_route.route != &opt1)
+    	{
     		route_Control(SW_E_GPIO_Port, OPT1);
     		Timer_Control(ENABLE_OPT);
     	}
-    	else{
+    	else
+    	{
     		Timer_Control(DISABLE_OPT);
     	}
     }
     if (GPIO_Pin == SW2_S_Pin)
     {
     	current_route.route = &opt2;
-    	if(current_route.state == DISABLE_OPT || current_route.route != &opt2){
+    	if(current_route.state == DISABLE_OPT || current_route.route != &opt2)
+    	{
     		route_Control(SW_E_GPIO_Port, OPT2);
     		Timer_Control(ENABLE_OPT);
     	}
-    	else{
+    	else
+    	{
     		Timer_Control(DISABLE_OPT);
     	}
     }
     if (GPIO_Pin == SW3_S_Pin)
     {
     	current_route.route = &opt3;
-    	if(current_route.state == DISABLE_OPT || current_route.route != &opt3){
+    	if(current_route.state == DISABLE_OPT || current_route.route != &opt3)
+    	{
     		route_Control(SW_E_GPIO_Port, OPT3);
     		Timer_Control(ENABLE_OPT);
     	}
-    	else{
+    	else
+    	{
     		Timer_Control(DISABLE_OPT);
     	}
     }
     if (GPIO_Pin == SW4_S_Pin)
     {
     	current_route.route = &opt4;
-    	if(current_route.state == DISABLE_OPT || current_route.route != &opt4){
+    	if(current_route.state == DISABLE_OPT || current_route.route != &opt4)
+    	{
     		route_Control(SW_E_GPIO_Port, OPT4);
     		Timer_Control(ENABLE_OPT);
     	}
-    	else{
+    	else
+    	{
     		Timer_Control(DISABLE_OPT);
     	}
     }
@@ -307,31 +376,38 @@ void route_Control(GPIO_TypeDef* GPIOx, uint8_t config)
   GPIOx->BSRR = ((SW_E_Pin | SW_S0_Pin | SW_S1_Pin | SW_S2_Pin) << 16); // Reset relevant pins
 
   // Apply the new configuration
-  if (config & 0x4) {
+  if (config & 0x4)
+  {
 	  GPIOx->BSRR = (uint32_t)SW_S0_Pin; // Set
   }
-  if (config & 0x2) {
+  if (config & 0x2)
+  {
 	  GPIOx->BSRR = (uint32_t)SW_S1_Pin; // Set
   }
-  if (config & 0x1) {
+  if (config & 0x1)
+  {
 	  GPIOx->BSRR = (uint32_t)SW_S2_Pin; // Set
   }
-  if (config & 0x8) {
+  if (config & 0x8)
+  {
 	  GPIOx->BSRR = (uint32_t)SW_E_Pin; // Set
   }
 }
 
-void volume_control(STATES_T state){
+void volume_control(STATES_t state)
+{
 	switch(state){
 	case VOLUME_INCREASE:
-		if(current_route.route->board_volume < 100){
+		if(current_route.route->board_volume < 100)
+		{
 			current_route.route->board_volume += VOLUME_STEP_SIZE;
 		}
 		if(current_route.route->board_volume > 100)
 			current_route.route->board_volume = 100;
 		break;
 	case VOLUME_DECREASE:
-		if(current_route.route->board_volume > 0){
+		if(current_route.route->board_volume > 0)
+		{
 			current_route.route->board_volume -= VOLUME_STEP_SIZE;
 		}
 		if(current_route.route->board_volume < 0)
@@ -342,12 +418,15 @@ void volume_control(STATES_T state){
 	}
 }
 
-void Timer_Control(STATES_T state){
-	switch(state){
+void Timer_Control(STATES_t state)
+{
+	switch(state)
+	{
 	case ENABLE_OPT:
 		current_route.state = ENABLE_OPT;
 		// Start the timer
-		if (HAL_TIM_Base_Start_IT(&htim11) != HAL_OK) {
+		if (HAL_TIM_Base_Start_IT(&htim11) != HAL_OK)
+		{
 			// Starting Error
 			Error_Handler();
 		}
@@ -358,7 +437,8 @@ void Timer_Control(STATES_T state){
 		current_route.route = NULL;
 
 		// Stop the timer
-		if (HAL_TIM_Base_Stop_IT(&htim11) != HAL_OK) {
+		if (HAL_TIM_Base_Stop_IT(&htim11) != HAL_OK)
+		{
 			// Stopping Error
 			Error_Handler();
 		}
@@ -374,14 +454,8 @@ void Timer_Control(STATES_T state){
   * @retval int
   */
 	uint8_t readvalueREG;
-	uint8_t readvalueREG_39;
-	uint8_t readvalueREG_38;
-	uint8_t readvalueREG_5A;
-	uint8_t readvalueREG_5B;
-	uint8_t readvalueREG_5C;
-	uint8_t readvalueREG_5D;
-	uint8_t readvalueREG_5E;
-	uint8_t readvalueREG_5F;
+	SAMPLING_FREQ_INFO_t Sampling_Frequency_RX;
+	SAMPLING_FREQ_INFO_t Sampling_Frequency_TX;
 
 	GPIO_PinState error_int0;
 	GPIO_PinState npcm_int1;
@@ -470,9 +544,16 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-	  if(!ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == DISABLE_OPT)){
+    /* USER CODE BEGIN 3 */
+
+	  if(!ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == DISABLE_OPT))
+	  {
 		  // Start I2S2 in DMA mode (receive)
 		  pcmTX.PCM9211_Init(0);
+
+		  pcmRX.Channel_Buffers();
+		  pcmTX.Channel_Buffers();
+
 		  RXPCM_ERROR_flag = ENABLE_OPT;
 
 		  if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
@@ -488,7 +569,8 @@ int main(void)
 			  Error_Handler();
 		  }
 	  }
-	  else if(ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == ENABLE_OPT)){
+	  else if(ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == ENABLE_OPT))
+	  {
 //		if (HAL_I2S_DMAStop(&hi2s2) != HAL_OK)
 //		{
 //			Error_Handler();
@@ -503,24 +585,17 @@ int main(void)
 	  }
 
 
-	  readvalueREG_38 = pcmRX.Read_(0x38);
-	  readvalueREG_39 = pcmRX.Read_(0x39);
-
 	  npcm_int1 = HAL_GPIO_ReadPin(NPCM_INT1_R_GPIO_Port, NPCM_INT1_R_Pin);
-	  error_int0 = HAL_GPIO_ReadPin(ERROR_INT0_R_GPIO_Port, ERROR_INT0_R_Pin);
-	  if(!error_int0){
-	  readvalueREG_5A = pcmRX.Read_(0x5A);
-	  readvalueREG_5B = pcmRX.Read_(0x5B);
-	  readvalueREG_5C = pcmRX.Read_(0x5C);
-	  readvalueREG_5D = pcmRX.Read_(0x5D);
-	  readvalueREG_5E = pcmRX.Read_(0x5E);
-	  readvalueREG_5F = pcmRX.Read_(0x5F);
+	  error_int0 = ERROR_READ_RX_PCM;
+	  if(!error_int0)
+	  {
+		  pcmRX.Channel_Buffers();
 	  }
 
-	  readvalueREG = pcmTX.PCM9211_SamplingFreq();
+	  Sampling_Frequency_RX = pcmRX.PCM9211_SamplingFreq();
+	  Sampling_Frequency_TX = pcmTX.PCM9211_SamplingFreq();
 	  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
 	  HAL_Delay(500);
-    /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
