@@ -19,15 +19,15 @@
 /* USER CODE BEGIN PTD */
 
 CHANNEL_BUFFERS_t channel_buffers;				// to hold S/PDIF channel information
-//CHANNEL_BUFFERS_t channel_buffers_tx =
-//{
-//		.REG_A = 0x00,					// 0b00000000
-//		.REG_B = 0xD0,					// 0b						// receiving 0xb8(0b10111000) from RX
-//		.REG_C = 0x00,
-//		.REG_D = 0x00,					// 0b00000000
-//		.REG_E = 0x00,
-//		.REG_F = 0x00
-//};
+CHANNEL_BUFFERS_t channel_buffers_tx =
+{
+		.REG_A = 0x00,					// 0b00000000
+		.REG_B = 0xD0,					// 0b						// receiving 0xb8(0b10111000) from RX
+		.REG_C = 0x00,
+		.REG_D = 0x00,					// 0b00000000
+		.REG_E = 0x00,
+		.REG_F = 0x00
+};
 //CHANNEL_BUFFERS_t channel_buffers_blank =
 //{
 //		.REG_A = 0x00,
@@ -155,10 +155,11 @@ DMA_HandleTypeDef hdma_spi3_tx;										// I2S SPI
 SPI_HandleTypeDef hspi1;											// Communication SPI with PCM ICs
 TIM_HandleTypeDef htim11;
 
-PCM9211 pcmRX(&hspi1, PCM_RX, &rx_conf, &channel_buffers);			// Receiving PCM IC Object
-PCM9211 pcmTX(&hspi1, PCM_TX, &tx_conf, &channel_buffers);			// Transmitting PCM IC Object
 
 /* USER CODE BEGIN PV */
+PCM9211 pcmRX(&hspi1, PCM_RX, &rx_conf, &channel_buffers);			// Receiving PCM IC Object
+PCM9211 pcmTX(&hspi1, PCM_TX, &tx_conf, &channel_buffers_tx);			// Transmitting PCM IC Object
+
 volatile uint8_t RXdma_started = 0;							// disables false RxHalfCpltCallback at startup
 volatile uint8_t RXPCM_ERROR_flag = DISABLE_OPT;			// flag for activating TX PCM IC
 /* USER CODE END PV */
@@ -172,11 +173,10 @@ static void MX_I2S2_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM11_Init(void);
+/* USER CODE BEGIN PFP */
 void volume_control(STATES_t state);
 void route_Control(GPIO_TypeDef* GPIOx, uint8_t config);
 void Timer_Control(STATES_t state);
-/* USER CODE BEGIN PFP */
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -447,18 +447,20 @@ void Timer_Control(STATES_t state)
 		break;
 	}
 }
-/* USER CODE END 0 */
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
 	uint8_t readvalueREG;
 	SAMPLING_FREQ_INFO_t Sampling_Frequency_RX;
 	SAMPLING_FREQ_INFO_t Sampling_Frequency_TX;
 
 	GPIO_PinState error_int0;
 	GPIO_PinState npcm_int1;
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
 
@@ -551,8 +553,8 @@ int main(void)
 		  // Start I2S2 in DMA mode (receive)
 		  pcmTX.PCM9211_Init(0);
 
-		  pcmRX.Channel_Buffers();
-		  pcmTX.Channel_Buffers();
+		  pcmRX.Channel_Buffers_Get();
+		  pcmTX.Channel_Buffers_Set();
 
 		  RXPCM_ERROR_flag = ENABLE_OPT;
 
@@ -589,7 +591,7 @@ int main(void)
 	  error_int0 = ERROR_READ_RX_PCM;
 	  if(!error_int0)
 	  {
-		  pcmRX.Channel_Buffers();
+		  pcmRX.Channel_Buffers_Get();
 	  }
 
 	  Sampling_Frequency_RX = pcmRX.PCM9211_SamplingFreq();

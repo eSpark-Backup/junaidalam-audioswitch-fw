@@ -81,8 +81,9 @@
 #define REG_RX1DIS				0x40
 #define REG_RXSEL_RXIN0   		0x00
 #define REG_RXSEL_RXIN1   		0x01
-#define REG_RXSEL_RXIN2   		0x02		//default
+#define REG_RXSEL_RXIN2   		0x02		// default
 #define REG_RXSEL_RXIN3   		0x03
+#define REG_RXSEL_TXOUT   		0x0F		// DIT output
 // 37h
 #define REG_PFSTGT_DIR			0x00
 #define REG_PFSTGT_ADC			0x01
@@ -236,7 +237,8 @@ public:
 	void Write_(uint8_t reg, uint8_t data);
 	void Write_regMask(uint8_t reg, uint8_t data);
 	uint32_t PCM9211_DataInfromation();
-	uint8_t Channel_Buffers(void);
+	uint8_t Channel_Buffers_Set(void);
+	uint8_t Channel_Buffers_Get(void);
 
 	SAMPLING_FREQ_INFO_t PCM9211_SamplingFreq(void);
 private:

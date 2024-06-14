@@ -221,16 +221,10 @@ uint8_t PCM9211::PCM9211_Init(uint8_t state)
   return PCM9211_OK;
 }
 
-uint8_t PCM9211::Channel_Buffers(void)
+uint8_t PCM9211::Channel_Buffers_Set(void)
 {
   switch(_mode){
   case PCM_RX:
-	  _buffers->REG_A = Read_(0x5A);
-	  _buffers->REG_B = Read_(0x5B);
-	  _buffers->REG_C = Read_(0x5C);
-	  _buffers->REG_D = Read_(0x5D);
-	  _buffers->REG_E = Read_(0x5E);
-	  _buffers->REG_F = Read_(0x5F);
 	  break;
   case PCM_TX:
 	  Write_REG(0x63, _buffers->REG_A);
@@ -247,6 +241,34 @@ uint8_t PCM9211::Channel_Buffers(void)
 
   return PCM9211_OK;
 }
+
+uint8_t PCM9211::Channel_Buffers_Get(void)
+{
+  switch(_mode){
+  case PCM_RX:
+	  _buffers->REG_A = Read_(0x5A);
+	  _buffers->REG_B = Read_(0x5B);
+	  _buffers->REG_C = Read_(0x5C);
+	  _buffers->REG_D = Read_(0x5D);
+	  _buffers->REG_E = Read_(0x5E);
+	  _buffers->REG_F = Read_(0x5F);
+	  break;
+  case PCM_TX:
+	  _buffers->REG_A = Read_(0x63);
+	  _buffers->REG_B = Read_(0x64);
+	  _buffers->REG_C = Read_(0x65);
+	  _buffers->REG_D = Read_(0x66);
+	  _buffers->REG_E = Read_(0x67);
+	  _buffers->REG_F = Read_(0x68);
+	  break;
+  default:
+	  return PCM9211_IO_ERROR;
+	  break;
+  }
+
+  return PCM9211_OK;
+}
+
 /*
  * 0x00: RXIN0 - SPDIF0
  * 0x01: RXIN1 - SPDIF1
