@@ -158,6 +158,7 @@ PCM9211 pcmTX(&hspi1, PCM_TX, &tx_conf, &channel_buffers_tx);			// Transmitting 
 volatile uint8_t RXdma_started = 0;							// disables false RxHalfCpltCallback at startup
 volatile uint8_t RXPCM_ERROR_flag = DISABLE_OPT;			// flag for activating TX PCM IC
 static	uint32_t last_interrupt_time = 0;					// Variable to manage the debounce logic
+static	uint32_t last_Led_toggle_time = 0;					// LED toggle time
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -174,6 +175,7 @@ void volume_control(STATES_t state);
 void route_Control(GPIO_TypeDef* GPIOx, uint8_t config);
 void Timer_Control(STATES_t state);
 void Reset_Timer(TIM_HandleTypeDef *htim);					// not utilised
+void Led_Toggle(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -396,9 +398,40 @@ void route_Control(GPIO_TypeDef* GPIOx, uint8_t config)
   {
 	  GPIOx->BSRR = (uint32_t)SW_S2_Pin; // Set
   }
-  if (config & 0x8)
+  if (config & 0x8)						// Disable output
   {
 	  GPIOx->BSRR = (uint32_t)SW_E_Pin; // Set
+
+	  // Also turn off the DMA
+	  if (HAL_I2S_DMAStop(&hi2s2) != HAL_OK)
+	  {
+		  // Initialization Error
+		  Error_Handler();
+	  }
+	  if (HAL_I2S_DMAStop(&hi2s3) != HAL_OK)
+	  {
+		  // Initialization Error
+		  Error_Handler();
+	  }
+  }
+  else									// Enable output
+  {
+//	  if(!ERROR_READ_RX_PCM)
+//	  {
+		  // Start acquiring data in buffer
+//		  if (HAL_I2S_DMAResume(&hi2s2) != HAL_OK)
+		  if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
+		  {
+			  // Initialization Error
+			  Error_Handler();
+		  }
+//		  if (HAL_I2S_DMAResume(&hi2s3) != HAL_OK)
+		  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)txBuffer, NUM_FRAMES/2) != HAL_OK)
+		  {
+			  // Initialization Error
+			  Error_Handler();
+		  }
+//	  }
   }
 }
 
@@ -474,6 +507,18 @@ void Reset_Timer(TIM_HandleTypeDef *htim)
     __HAL_TIM_SET_COUNTER(htim, 0);
 }
 
+void Led_Toggle(void)
+{
+	uint32_t current_time = HAL_GetTick(); // Get current time in milliseconds
+
+	// Check if the debounce period has passed
+	if ((current_time - last_Led_toggle_time) >= 500)
+	{
+	  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+	  last_Led_toggle_time = current_time;
+	}
+}
+//==================================================================================================
 
 	uint8_t readvalueREG;
 	SAMPLING_FREQ_INFO_t Sampling_Frequency_RX;
@@ -525,48 +570,48 @@ int main(void)
   PCM9211_Reset();
 
 
-  int index = 0;
-  while(index<NUM_FRAMES)//for(int index=0; index<NUM_FRAMES; index+2)
-  {
-	  txBuffer[index] = 3333;
-	  index+=2;
-  }
-  index=1;
-  while(index<NUM_FRAMES)//for(int index=1; index<NUM_FRAMES; index+2)
-  {
-	  txBuffer[index] = 1515;
-	  index+=2;
-  }
+//  int index = 0;
+//  while(index<NUM_FRAMES)//for(int index=0; index<NUM_FRAMES; index+2)
+//  {
+//	  txBuffer[index] = 3333;
+//	  index+=2;
+//  }
+//  index=1;
+//  while(index<NUM_FRAMES)//for(int index=1; index<NUM_FRAMES; index+2)
+//  {
+//	  txBuffer[index] = 1515;
+//	  index+=2;
+//  }
 
 
 
   // Initialize PCM Receiver ICs
-  if(pcmRX.PCM9211_Init(0))
+  if(pcmRX.PCM9211_Init(PCM_INITIALIZE))
   {
 	  // Initialization Error
 	  Error_Handler();
   }
   // Initialize PCM Transmitter ICs
-  if(pcmTX.PCM9211_Init(0))
+  if(pcmTX.PCM9211_Init(PCM_INITIALIZE))
   {
 	  // Initialization Error
 	  Error_Handler();
   }
-  pcmTX.Channel_Buffers_Set();
+//  pcmTX.Channel_Buffers_Set();
 
 
-  if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
-  {
-	  // Initialization Error
-	  Error_Handler();
-  }
-
-  // Start I2S3 in DMA mode (transmit)
-  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)txBuffer, NUM_FRAMES/2) != HAL_OK)
-  {
-	  // Initialization Error
-	  Error_Handler();
-  }
+//  if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
+//  {
+//	  // Initialization Error
+//	  Error_Handler();
+//  }
+//
+//  // Start I2S3 in DMA mode (transmit)
+//  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)txBuffer, NUM_FRAMES/2) != HAL_OK)
+//  {
+//	  // Initialization Error
+//	  Error_Handler();
+//  }
 
 //	readvalueREG = pcmRX.Read_(0x40);
 //	readvalueREG = pcmRX.Read_(0x20);
@@ -603,24 +648,24 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 
-//	  if(!ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == DISABLE_OPT))
+//	  if((!ERROR_READ_RX_PCM) && (RXPCM_ERROR_flag == DISABLE_OPT))
 //	  {
 //		  // Start I2S2 in DMA mode (receive)
-//		  pcmTX.PCM9211_Init(0);
+//		  pcmTX.PCM9211_Init(PCM_INITIALIZE);
 //
 //		  pcmRX.Channel_Buffers_Get();
 //		  pcmTX.Channel_Buffers_Set();
 //
 //		  RXPCM_ERROR_flag = ENABLE_OPT;
 //
-//		  if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
+//		  if (HAL_I2S_DMAResume(&hi2s2) != HAL_OK)
 //		  {
 //			  // Initialization Error
 //			  Error_Handler();
 //		  }
 //
 //		  // Start I2S3 in DMA mode (transmit)
-//		  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
+//		  if (HAL_I2S_DMAResume(&hi2s3) != HAL_OK)
 //		  {
 //			  // Initialization Error
 //			  Error_Handler();
@@ -628,17 +673,18 @@ int main(void)
 //	  }
 //	  else if(ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == ENABLE_OPT))
 //	  {
-////		if (HAL_I2S_DMAStop(&hi2s2) != HAL_OK)
-////		{
-////			Error_Handler();
-////		}
-//		if (HAL_I2S_DMAStop(&hi2s3) != HAL_OK)
+//		if (HAL_I2S_DMAPause(&hi2s2) != HAL_OK)
 //		{
 //			Error_Handler();
 //		}
-//		pcmTX.PCM9211_Init(1);
-//		pcmRX.PCM9211_Init(0);			// check authenticity of this
+//		if (HAL_I2S_DMAPause(&hi2s3) != HAL_OK)
+//		{
+//			Error_Handler();
+//		}
+//
 //		RXPCM_ERROR_flag = DISABLE_OPT;
+//		pcmTX.PCM9211_Init(PCM_TURNOFF);
+////		pcmRX.PCM9211_Init(PCM_INITIALIZE);			// check authenticity of this
 //	  }
 
 
@@ -653,8 +699,9 @@ int main(void)
 	  Sampling_Frequency_RX = pcmRX.PCM9211_SamplingFreq();
 	  Sampling_Frequency_TX = pcmTX.PCM9211_SamplingFreq();
 
-	  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
-	  HAL_Delay(500);
+	  Led_Toggle();
+//	  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+//	  HAL_Delay(500);
   }
   /* USER CODE END 3 */
 }

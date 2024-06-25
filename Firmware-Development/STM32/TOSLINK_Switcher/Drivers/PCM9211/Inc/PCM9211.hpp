@@ -193,7 +193,9 @@ typedef enum
 	PCM_TX = 1,
 	PCM_RX,
 	PCM_SS_SELECT,
-	PCM_SS_DESELECT
+	PCM_SS_DESELECT,
+	PCM_INITIALIZE,
+	PCM_TURNOFF
 }PCM9211_Mode_t;
 
 typedef struct
@@ -226,7 +228,8 @@ typedef enum _PCM9211_Frequencies_t
 void PCM9211_Reset(void);
 
 
-class PCM9211{
+class PCM9211
+{
 public:
 	PCM9211(SPI_HandleTypeDef* spi, PCM9211_Mode_t mode, SS_Conf* SS, CHANNEL_BUFFERS_t* buffers);
 	virtual ~PCM9211();

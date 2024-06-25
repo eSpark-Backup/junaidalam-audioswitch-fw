@@ -69,8 +69,9 @@ uint8_t PCM9211::PCM9211_Init(uint8_t state)
   if(readValue != (REG_MRST | REG_SRST))//0xC0)
 	return PCM9211_IO_ERROR;
 
-  switch(state){
-  case 0:
+  switch(state)
+  {
+  case PCM_INITIALIZE:
 	/*** XTI CLK source 12.288 and BCK 3.072, LRCK 48k = XTI/512: ***/
 		  if(Write_REG(0x31, REGMASK & (REG_XSCK_12_288 | REG_XBCK_3_072 | REG_XLRCK_48)))//0x1A))
 			return PCM9211_IO_ERROR;
@@ -92,7 +93,8 @@ uint8_t PCM9211::PCM9211_Init(uint8_t state)
 		  if(Write_REG(0x33, REGMASK & (0x22)))
 			return PCM9211_IO_ERROR;
 
-	  switch(_mode){
+	  switch(_mode)
+	  {
 	  case PCM_RX:
 		  /*** Disable: ADC, DIR ***/
 //		  Write_(0x40, (REG_MRST | REG_SRST | REG_ADDIS | REG_RXDIS)	//0xF0);							// ADC/DIR turned off
@@ -215,7 +217,7 @@ uint8_t PCM9211::PCM9211_Init(uint8_t state)
 		  break;
 	  }
 	  break;
-  case 1:	//disable the PCM components
+  case PCM_TURNOFF:	//disable the PCM components
 	/*** Disable: ADC, DIR ***/
 	  if(Write_REG(0x40, 0xF3))	// turned off everything
 		  return PCM9211_IO_ERROR;
@@ -231,7 +233,8 @@ uint8_t PCM9211::PCM9211_Init(uint8_t state)
 
 uint8_t PCM9211::Channel_Buffers_Set(void)
 {
-  switch(_mode){
+  switch(_mode)
+  {
   case PCM_RX:
 	  break;
   case PCM_TX:
@@ -252,7 +255,8 @@ uint8_t PCM9211::Channel_Buffers_Set(void)
 
 uint8_t PCM9211::Channel_Buffers_Get(void)
 {
-  switch(_mode){
+  switch(_mode)
+  {
   case PCM_RX:
 	  _buffers->REG_A = Read_(0x5A);
 	  _buffers->REG_B = Read_(0x5B);
@@ -337,7 +341,6 @@ SAMPLING_FREQ_INFO_t PCM9211::PCM9211_SamplingFreq(void)
 
 uint32_t PCM9211::PCM9211_DataInfromation()
 {
-
   return Read_(0x3A);
  // return ReadU32(0x3A);
 }
@@ -354,15 +357,19 @@ uint8_t PCM9211::Read_(uint8_t reg)
 //    txData[0] = reg & 0x7F;  // Clear MSB for read operation
     txData[0] = reg | 0x80;  // Set MSB for read operation
 
-    this->PCM9211_SS(PCM_SS_SELECT);
+    PCM9211_SS(PCM_SS_SELECT);
 //    HAL_Delay(1);
-    do{
+    do
+    {
     	errorcode = HAL_SPI_Transmit(_spi, txData, 1, HAL_MAX_DELAY);  // Transmit register address
-	}while(errorcode != HAL_OK);
-    do{
+	}
+    while(errorcode != HAL_OK);
+    do
+    {
 		HAL_SPI_Receive(_spi, rxData, 1, HAL_MAX_DELAY);   // Receive data
-	}while(errorcode != HAL_OK);
-    this->PCM9211_SS(PCM_SS_DESELECT);
+	}
+    while(errorcode != HAL_OK);
+    PCM9211_SS(PCM_SS_DESELECT);
 
     return rxData[0];
 }
@@ -388,16 +395,20 @@ void PCM9211::Write_(uint8_t reg, uint8_t data)
     txData[1] = data;
 
 
-    this->PCM9211_SS(PCM_SS_SELECT);
+    PCM9211_SS(PCM_SS_SELECT);
 //    HAL_Delay(1);
-    do{
+    do
+    {
     	errorcode = HAL_SPI_Transmit(_spi, &txData[0], 1, HAL_MAX_DELAY);  // Transmit register address and data
-    }while(errorcode != HAL_OK);
-    do{
+    }
+    while(errorcode != HAL_OK);
+    do
+    {
     	HAL_SPI_Transmit(_spi, &txData[1], 1, HAL_MAX_DELAY);  // Transmit register address and data
-    }while(errorcode != HAL_OK);
+    }
+    while(errorcode != HAL_OK);
 
-    this->PCM9211_SS(PCM_SS_DESELECT);
+    PCM9211_SS(PCM_SS_DESELECT);
 }
 
 void PCM9211::Write_regMask(uint8_t reg, uint8_t data)
@@ -414,14 +425,15 @@ void PCM9211::Write_regMask(uint8_t reg, uint8_t data)
 
 void PCM9211::PCM9211_SS(PCM9211_Mode_t state)
 {
-	switch(state){
-		case PCM_SS_SELECT:
-		  HAL_GPIO_WritePin(this->_SS_port, this->_SS_pin, GPIO_PIN_RESET);
-		  break;
-		case PCM_SS_DESELECT:
-		  HAL_GPIO_WritePin(this->_SS_port, this->_SS_pin, GPIO_PIN_SET);
-		  break;
-		default:
-			break;
+	switch(state)
+	{
+	case PCM_SS_SELECT:
+	  HAL_GPIO_WritePin(_SS_port, _SS_pin, GPIO_PIN_RESET);
+	  break;
+	case PCM_SS_DESELECT:
+	  HAL_GPIO_WritePin(_SS_port, _SS_pin, GPIO_PIN_SET);
+	  break;
+	default:
+		break;
 	}
 }
