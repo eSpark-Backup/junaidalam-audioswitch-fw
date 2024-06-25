@@ -43,6 +43,7 @@ PCM9211::PCM9211(SPI_HandleTypeDef* spi, PCM9211_Mode_t mode, SS_Conf* SS, CHANN
 	_SS_port = SS->port;
 	_SS_pin = SS->pin;
 	_buffers = buffers;
+	_isReset = false;
 }
 
 PCM9211::~PCM9211() {
@@ -93,9 +94,15 @@ uint8_t PCM9211::PCM9211_Init(uint8_t state)
 
 	  switch(_mode){
 	  case PCM_RX:
+		  /*** Disable: ADC, DIR ***/
+//		  Write_(0x40, (REG_MRST | REG_SRST | REG_ADDIS | REG_RXDIS)	//0xF0);							// ADC/DIR turned off
+//		  Write_(0x40, (REG_MRST | REG_SRST | REG_ADDIS | REG_RXDIS | REG_TXDIS | REG_XODIS)	//0xF3);	// turned off everything, power down
+//		  Write_(0x40, (REG_MRST | REG_SRST)	//0xC0);													// all normal operation, power up
+		  if(Write_REG(0x40, REGMASK & (REG_MRST | REG_SRST | REG_ADDIS | REG_TXDIS)))//0xC0))
+			return PCM9211_IO_ERROR;
 	/*** ---------Start DIR settings----------: ***/
 		  /*** DIR Receivable Incoming Biphase's Sampling Frequency Range Setting: ***/
-		  if(Write_REG(0x21, REGMASK & (0x00)))
+		  if(Write_REG(0x21, REGMASK & (REG_RXFSRNG)))
 			return PCM9211_IO_ERROR;
 
 		  /*** DIR CLKSTP and VOUT delay: ***/
@@ -174,7 +181,8 @@ uint8_t PCM9211::PCM9211_Init(uint8_t state)
 //		  /*** Main Input Source: DIT <- AUXIN0 ***/
 //		  Write_(0x60, 0x33);	// DIT clock and audio; AUXIN0
 //		  Write_(0x60, 0x23);	// DIT audio; AUXIN0, DIT clock; ADC
-		  if(Write_REG(0x60, REGMASK & (REG_TXSSRC_ADC | REG_TXPSRC_AUXIN0)))//0x23))
+//		  if(Write_REG(0x60, REGMASK & (REG_TXSSRC_ADC | REG_TXPSRC_AUXIN0)))//0x23))
+		  if(Write_REG(0x60, REGMASK & (REG_TXSSRC_AUXIN0 | REG_TXPSRC_AUXIN0)))//0x33))
 			return PCM9211_IO_ERROR;
 
 		  /*** DIT Function Control 2/3: ***/

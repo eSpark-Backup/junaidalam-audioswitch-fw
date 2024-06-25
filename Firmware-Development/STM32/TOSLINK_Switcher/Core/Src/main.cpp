@@ -22,21 +22,12 @@ CHANNEL_BUFFERS_t channel_buffers;				// to hold S/PDIF channel information
 CHANNEL_BUFFERS_t channel_buffers_tx =
 {
 		.REG_A = 0x00,					// 0b00000000
-		.REG_B = 0xD0,					// 0b						// receiving 0xb8(0b10111000) from RX
+		.REG_B = 0xB8,					// 0b						// receiving 0xb8(0b10111000) from RX
 		.REG_C = 0x00,
 		.REG_D = 0x00,					// 0b00000000
 		.REG_E = 0x00,
 		.REG_F = 0x00
 };
-//CHANNEL_BUFFERS_t channel_buffers_blank =
-//{
-//		.REG_A = 0x00,
-//		.REG_B = 0x00,
-//		.REG_C = 0x00,
-//		.REG_D = 0x00,
-//		.REG_E = 0x00,
-//		.REG_F = 0x00
-//};
 
 typedef struct
 {
@@ -58,7 +49,7 @@ output_routes_t opt2 = {
 };
 output_routes_t opt1 = {
 		.output_pin = SW_S2_Pin | SW_S1_Pin,
-		.board_volume = 100
+		.board_volume = 50
 };
 
 struct current_route_s
@@ -79,11 +70,11 @@ current_route_s current_route = { NULL, DISABLE_OPT };
 
 SS_Conf tx_conf = {
 	.port = SS_T_GPIO_Port,
-	.pin = SS_T_Pin
+	.pin = SS_T_Pin							// SPI SS pin
 };
 SS_Conf rx_conf = {
 	.port = SS_R_GPIO_Port,
-	.pin = SS_R_Pin
+	.pin = SS_R_Pin							// SPI SS pin
 };
 /* USER CODE END PTD */
 
@@ -91,9 +82,9 @@ SS_Conf rx_conf = {
 /* USER CODE BEGIN PD */
 #define NUM_FRAMES 256//128							// No. of frames per DMA transaction, we are using I2S format with 24bit width in 32bit frame
 #define BUFFER_SIZE (NUM_FRAMES * sizeof(uint32_t))
-#define VOLUME_LEVELS	100.f					//resolution of volume, 0-100
-#define VOLUME_STEP_SIZE	(1.0/VOLUME_LEVELS)*100.0
-#define SWITCH_VOLUME(x)	(x)/(100.f)	// from 0-100 range to 0-1
+#define VOLUME_LEVELS	20.f					//resolution of volume, 0-100
+#define VOLUME_STEP_SIZE	(1.f/VOLUME_LEVELS)*100.f
+#define SWITCH_VOLUME(x)	(x)/(100.f)	// switch range from 0-100 to 0-1
 #define OPT1	0x3			// 0b0011
 #define OPT2	0x1			// 0b0001
 #define OPT3	0x2			// 0b0010
@@ -101,43 +92,47 @@ SS_Conf rx_conf = {
 #define OPT_DISABLE		0x8	// 0b1000			//  ( EN | S0 | S1 | S2)
 #define ERROR_READ_RX_PCM	HAL_GPIO_ReadPin(ERROR_INT0_R_GPIO_Port, ERROR_INT0_R_Pin)
 
+#define DEBOUNCE_TIME_MS	250					// Define the debounce time in milliseconds
+#define OPT_TURNOFF_TIME	30					// Auto Turnoff time for output; in Seconds
+
 uint32_t rxBuffer[NUM_FRAMES];
 //uint32_t txBuffer[NUM_FRAMES];
 
-uint32_t txBuffer[NUM_FRAMES] = {									//	1KHz Sine wave at 44.1KHz sampling rate
-16383,  18709,  20989,  23174,  25223,  27092,  28744,  30146,
-31268,  32089,  32592,  32766,  32609,  32122,  31317,  30209,
-28820,  27180,  25321,  23281,  21100,  18825,  16500,  14172,
-11890,   9698,   7642,   5763,   4099,   2684,   1547,    710,
-191,      0,    142,    612,   1402,   2495,   3870,   5499,
-7348,   9380,  11554,  13826,  16150,  18478,  20764,  22961,
-25025,  26914,  28590,  30018,  31169,  32021,  32556,  32764,
-32639,  32185,  31411,  30332,  28971,  27354,  25515,  23492,
-21324,  19055,  16733,  14404,  12114,   9912,   7840,   5942,
-4255,   2814,   1647,    780,    229,      5,    113,    550,
-1309,   2373,   3721,   5325,   7154,   9169,  11331,  13596,
-15916,  18246,  20539,  22747,  24826,  26734,  28433,  29887,
-31067,  31950,  32518,  32758,  32667,  32245,  31503,  30453,
-29119,  27527,  25708,  23701,  21546,  19285,  16966,  14636,
-12340,  10127,   8040,   6122,   4413,   2946,   1751,    853,
-269,     12,     87,    492,   1219,   2253,   3574,   5154,
-6962,   8961,  11110,  13366,  15683,  18014,  20313,  22531,
-24625,  26552,  28273,  29753,  30962,  31876,  32475,  32749,
-32691,  32302,  31591,  30572,  29265,  27697,  25899,  23909,
-21767,  19515,  17200,  14868,  12567,  10343,   8242,   6306,
-4573,   3081,   1857,    929,    313,     23,     64,    437,
-1132,   2136,   3430,   4985,   6772,   8753,  10889,  13137,
-15450,  17782,  20086,  22314,  24423,  26368,  28111,  29617,
-30854,  31798,  32430,  32736,  32712,  32356,  31676,  30687,
-29408,  27864,  26088,  24116,  21986,  19744,  17433,  15100,
-12794,  10561,   8445,   6491,   4736,   3218,   1967,   1008,
-360,     54,     30,    336,   1048,   2023,   3288,   4819,
-6584,   8548,  10670,  12908,  15217,  17549,  19858,  22096,
-24218,  26182,  27947,  29478,  30743,  31718,  32381,  32721,
-32729,  32406,  31758,  30799,  29548,  28030,  26275,  24321,
-22205,  19972,  17666,  15333,  13022,  10780,   8650,   6678,
-4902,   3358,   2079,   1090,    410,     54,     30,    336
-};
+uint32_t txBuffer[NUM_FRAMES];
+//uint32_t txBuffer[NUM_FRAMES] = {									//	1KHz Sine wave at 44.1KHz sampling rate
+//16383,  18709,  20989,  23174,  25223,  27092,  28744,  30146,
+//31268,  32089,  32592,  32766,  32609,  32122,  31317,  30209,
+//28820,  27180,  25321,  23281,  21100,  18825,  16500,  14172,
+//11890,   9698,   7642,   5763,   4099,   2684,   1547,    710,
+//191,      0,    142,    612,   1402,   2495,   3870,   5499,
+//7348,   9380,  11554,  13826,  16150,  18478,  20764,  22961,
+//25025,  26914,  28590,  30018,  31169,  32021,  32556,  32764,
+//32639,  32185,  31411,  30332,  28971,  27354,  25515,  23492,
+//21324,  19055,  16733,  14404,  12114,   9912,   7840,   5942,
+//4255,   2814,   1647,    780,    229,      5,    113,    550,
+//1309,   2373,   3721,   5325,   7154,   9169,  11331,  13596,
+//15916,  18246,  20539,  22747,  24826,  26734,  28433,  29887,
+//31067,  31950,  32518,  32758,  32667,  32245,  31503,  30453,
+//29119,  27527,  25708,  23701,  21546,  19285,  16966,  14636,
+//12340,  10127,   8040,   6122,   4413,   2946,   1751,    853,
+//269,     12,     87,    492,   1219,   2253,   3574,   5154,
+//6962,   8961,  11110,  13366,  15683,  18014,  20313,  22531,
+//24625,  26552,  28273,  29753,  30962,  31876,  32475,  32749,
+//32691,  32302,  31591,  30572,  29265,  27697,  25899,  23909,
+//21767,  19515,  17200,  14868,  12567,  10343,   8242,   6306,
+//4573,   3081,   1857,    929,    313,     23,     64,    437,
+//1132,   2136,   3430,   4985,   6772,   8753,  10889,  13137,
+//15450,  17782,  20086,  22314,  24423,  26368,  28111,  29617,
+//30854,  31798,  32430,  32736,  32712,  32356,  31676,  30687,
+//29408,  27864,  26088,  24116,  21986,  19744,  17433,  15100,
+//12794,  10561,   8445,   6491,   4736,   3218,   1967,   1008,
+//360,     54,     30,    336,   1048,   2023,   3288,   4819,
+//6584,   8548,  10670,  12908,  15217,  17549,  19858,  22096,
+//24218,  26182,  27947,  29478,  30743,  31718,  32381,  32721,
+//32729,  32406,  31758,  30799,  29548,  28030,  26275,  24321,
+//22205,  19972,  17666,  15333,  13022,  10780,   8650,   6678,
+//4902,   3358,   2079,   1090,    410,     54,     30,    336
+//};
 
 /* USER CODE END PD */
 
@@ -149,19 +144,20 @@ uint32_t txBuffer[NUM_FRAMES] = {									//	1KHz Sine wave at 44.1KHz sampling 
 /* Private variables ---------------------------------------------------------*/
 I2S_HandleTypeDef hi2s2;
 I2S_HandleTypeDef hi2s3;
-DMA_HandleTypeDef hdma_spi2_rx;										// I2S SPI
-DMA_HandleTypeDef hdma_spi3_tx;										// I2S SPI
+DMA_HandleTypeDef hdma_spi2_rx;										// I2S receive SPI
+DMA_HandleTypeDef hdma_spi3_tx;										// I2S transmit SPI
 
 SPI_HandleTypeDef hspi1;											// Communication SPI with PCM ICs
-TIM_HandleTypeDef htim11;
+TIM_HandleTypeDef htim11;											// Timer for OPT auto turnoff feature
 
 
 /* USER CODE BEGIN PV */
-PCM9211 pcmRX(&hspi1, PCM_RX, &rx_conf, &channel_buffers);			// Receiving PCM IC Object
+PCM9211 pcmRX(&hspi1, PCM_RX, &rx_conf, &channel_buffers);				// Receiving PCM IC Object
 PCM9211 pcmTX(&hspi1, PCM_TX, &tx_conf, &channel_buffers_tx);			// Transmitting PCM IC Object
 
 volatile uint8_t RXdma_started = 0;							// disables false RxHalfCpltCallback at startup
 volatile uint8_t RXPCM_ERROR_flag = DISABLE_OPT;			// flag for activating TX PCM IC
+static	uint32_t last_interrupt_time = 0;					// Variable to manage the debounce logic
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -177,6 +173,7 @@ static void MX_TIM11_Init(void);
 void volume_control(STATES_t state);
 void route_Control(GPIO_TypeDef* GPIOx, uint8_t config);
 void Timer_Control(STATES_t state);
+void Reset_Timer(TIM_HandleTypeDef *htim);					// not utilised
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -238,6 +235,7 @@ void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s)
 //		}
     }
 }
+
 //void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s)
 //{
 //    if (hi2s->Instance == SPI2)
@@ -266,7 +264,8 @@ void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
 }
 
 // HAL TIM Callback function
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
     if (htim->Instance == TIM11)
     {
     	Timer_Control(DISABLE_OPT);
@@ -276,96 +275,105 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 // HAL GPIO EXTI Callback function
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	// SW_Select buttons
-    if (GPIO_Pin == SW1_S_Pin)
-    {
-    	current_route.route = &opt1;
-    	if(current_route.state == DISABLE_OPT || current_route.route != &opt1)
-    	{
-    		route_Control(SW_E_GPIO_Port, OPT1);
-    		Timer_Control(ENABLE_OPT);
-    	}
-    	else
-    	{
-    		Timer_Control(DISABLE_OPT);
-    	}
-    }
-    if (GPIO_Pin == SW2_S_Pin)
-    {
-    	current_route.route = &opt2;
-    	if(current_route.state == DISABLE_OPT || current_route.route != &opt2)
-    	{
-    		route_Control(SW_E_GPIO_Port, OPT2);
-    		Timer_Control(ENABLE_OPT);
-    	}
-    	else
-    	{
-    		Timer_Control(DISABLE_OPT);
-    	}
-    }
-    if (GPIO_Pin == SW3_S_Pin)
-    {
-    	current_route.route = &opt3;
-    	if(current_route.state == DISABLE_OPT || current_route.route != &opt3)
-    	{
-    		route_Control(SW_E_GPIO_Port, OPT3);
-    		Timer_Control(ENABLE_OPT);
-    	}
-    	else
-    	{
-    		Timer_Control(DISABLE_OPT);
-    	}
-    }
-    if (GPIO_Pin == SW4_S_Pin)
-    {
-    	current_route.route = &opt4;
-    	if(current_route.state == DISABLE_OPT || current_route.route != &opt4)
-    	{
-    		route_Control(SW_E_GPIO_Port, OPT4);
-    		Timer_Control(ENABLE_OPT);
-    	}
-    	else
-    	{
-    		Timer_Control(DISABLE_OPT);
-    	}
-    }
+	uint32_t current_time = HAL_GetTick(); // Get current time in milliseconds
 
-    // Volume control
-    if (GPIO_Pin == SW1_V__Pin && current_route.route == &opt1)
-    {
-    	volume_control(VOLUME_INCREASE);
-    }
-    if (GPIO_Pin == SW1_V_B7_Pin && current_route.route == &opt1)
-    {
-    	volume_control(VOLUME_DECREASE);
-    }
+	// Check if the debounce period has passed
+	if ((current_time - last_interrupt_time) >= DEBOUNCE_TIME_MS)
+	{
+		// SW_Select buttons
+		switch(GPIO_Pin)
+		{
+		case SW1_S_Pin:
+			if(current_route.state == DISABLE_OPT || current_route.route != &opt1)
+			{
+				route_Control(SW_E_GPIO_Port, OPT1);
+				Timer_Control(ENABLE_OPT);
+				current_route.route = &opt1;
+			}
+			else
+			{
+				Timer_Control(DISABLE_OPT);
+			}
+			break;
+		case SW2_S_Pin:
+			if(current_route.state == DISABLE_OPT || current_route.route != &opt2)
+			{
+				route_Control(SW_E_GPIO_Port, OPT2);
+				Timer_Control(ENABLE_OPT);
+				current_route.route = &opt2;
+			}
+			else
+			{
+				Timer_Control(DISABLE_OPT);
+			}
+			break;
+		case SW3_S_Pin:
+			if(current_route.state == DISABLE_OPT || current_route.route != &opt3)
+			{
+				route_Control(SW_E_GPIO_Port, OPT3);
+				Timer_Control(ENABLE_OPT);
+				current_route.route = &opt3;
+			}
+			else
+			{
+				Timer_Control(DISABLE_OPT);
+			}
+			break;
+		case SW4_S_Pin:
+			if(current_route.state == DISABLE_OPT || current_route.route != &opt4)
+			{
+				route_Control(SW_E_GPIO_Port, OPT4);
+				Timer_Control(ENABLE_OPT);
+				current_route.route = &opt4;
+			}
+			else
+			{
+				Timer_Control(DISABLE_OPT);
+			}
+			break;
+		default:
+			break;
+		}
 
-    if (GPIO_Pin == SW2_V__Pin && current_route.route == &opt2)
-    {
-    	volume_control(VOLUME_INCREASE);
-    }
-    if (GPIO_Pin == SW2_V_C15_Pin && current_route.route == &opt2)
-    {
-    	volume_control(VOLUME_DECREASE);
-    }
+		// Volume control
+		if (GPIO_Pin == SW1_V__Pin && current_route.route == &opt1)
+		{
+			volume_control(VOLUME_INCREASE);
+		}
+		if (GPIO_Pin == SW1_V_B7_Pin && current_route.route == &opt1)
+		{
+			volume_control(VOLUME_DECREASE);
+		}
 
-    if (GPIO_Pin == SW3_V__Pin && current_route.route == &opt3)
-    {
-    	volume_control(VOLUME_INCREASE);
-    }
-    if (GPIO_Pin == SW3_V_A2_Pin && current_route.route == &opt3)
-    {
-    	volume_control(VOLUME_DECREASE);
-    }
+		if (GPIO_Pin == SW2_V__Pin && current_route.route == &opt2)
+		{
+			volume_control(VOLUME_INCREASE);
+		}
+		if (GPIO_Pin == SW2_V_C15_Pin && current_route.route == &opt2)
+		{
+			volume_control(VOLUME_DECREASE);
+		}
 
-    if (GPIO_Pin == SW4_V__Pin && current_route.route == &opt4)
-    {
-    	volume_control(VOLUME_INCREASE);
-    }
-    if (GPIO_Pin == SW4_V_C12_Pin && current_route.route == &opt4)
-    {
-    	volume_control(VOLUME_DECREASE);
-    }
+		if (GPIO_Pin == SW3_V__Pin && current_route.route == &opt3)
+		{
+			volume_control(VOLUME_INCREASE);
+		}
+		if (GPIO_Pin == SW3_V_A2_Pin && current_route.route == &opt3)
+		{
+			volume_control(VOLUME_DECREASE);
+		}
+
+		if (GPIO_Pin == SW4_V__Pin && current_route.route == &opt4)
+		{
+			volume_control(VOLUME_INCREASE);
+		}
+		if (GPIO_Pin == SW4_V_C12_Pin && current_route.route == &opt4)
+		{
+			volume_control(VOLUME_DECREASE);
+		}
+
+		last_interrupt_time = current_time;
+	}
 }
 
 
@@ -396,7 +404,8 @@ void route_Control(GPIO_TypeDef* GPIOx, uint8_t config)
 
 void volume_control(STATES_t state)
 {
-	switch(state){
+	switch(state)
+	{
 	case VOLUME_INCREASE:
 		if(current_route.route->board_volume < 100)
 		{
@@ -424,12 +433,23 @@ void Timer_Control(STATES_t state)
 	{
 	case ENABLE_OPT:
 		current_route.state = ENABLE_OPT;
+		Reset_Timer(&htim11);
+		// Stop the timer
+		if(htim11.State != HAL_TIM_STATE_READY)
+		{
+			if (HAL_TIM_Base_Stop_IT(&htim11) != HAL_OK)
+			{
+				// Stopping Error
+				Error_Handler();
+			}
+		}
 		// Start the timer
 		if (HAL_TIM_Base_Start_IT(&htim11) != HAL_OK)
 		{
 			// Starting Error
 			Error_Handler();
 		}
+
 		break;
 	case DISABLE_OPT:
 		route_Control(SW_E_GPIO_Port, OPT_DISABLE);
@@ -447,6 +467,13 @@ void Timer_Control(STATES_t state)
 		break;
 	}
 }
+
+// Function to reset the timer countdown
+void Reset_Timer(TIM_HandleTypeDef *htim)
+{
+    __HAL_TIM_SET_COUNTER(htim, 0);
+}
+
 
 	uint8_t readvalueREG;
 	SAMPLING_FREQ_INFO_t Sampling_Frequency_RX;
@@ -497,6 +524,22 @@ int main(void)
   /* USER CODE BEGIN 2 */
   PCM9211_Reset();
 
+
+  int index = 0;
+  while(index<NUM_FRAMES)//for(int index=0; index<NUM_FRAMES; index+2)
+  {
+	  txBuffer[index] = 3333;
+	  index+=2;
+  }
+  index=1;
+  while(index<NUM_FRAMES)//for(int index=1; index<NUM_FRAMES; index+2)
+  {
+	  txBuffer[index] = 1515;
+	  index+=2;
+  }
+
+
+
   // Initialize PCM Receiver ICs
   if(pcmRX.PCM9211_Init(0))
   {
@@ -509,33 +552,44 @@ int main(void)
 	  // Initialization Error
 	  Error_Handler();
   }
+  pcmTX.Channel_Buffers_Set();
 
-//  if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
-//  {
-//	  // Initialization Error
-//	  Error_Handler();
-//  }
+
+  if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
+  {
+	  // Initialization Error
+	  Error_Handler();
+  }
+
+  // Start I2S3 in DMA mode (transmit)
+  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)txBuffer, NUM_FRAMES/2) != HAL_OK)
+  {
+	  // Initialization Error
+	  Error_Handler();
+  }
+
+//	readvalueREG = pcmRX.Read_(0x40);
+//	readvalueREG = pcmRX.Read_(0x20);
+//	readvalueREG = pcmRX.Read_(0x24);
+//	readvalueREG = pcmRX.Read_(0x37);
+//	readvalueREG = pcmRX.Read_(0x60);
+//	readvalueREG = pcmRX.Read_(0x61);
+//	readvalueREG = pcmRX.Read_(0x78);
+//	readvalueREG = pcmRX.Read_(0x62);
 //
-//  // Start I2S3 in DMA mode (transmit)
-//  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
-//  {
-//	  // Initialization Error
-//	  Error_Handler();
-//  }
-
-	readvalueREG = pcmTX.Read_(0x40);
-	readvalueREG = pcmTX.Read_(0x20);
-	readvalueREG = pcmTX.Read_(0x24);
-	readvalueREG = pcmTX.Read_(0x37);
-	readvalueREG = pcmTX.Read_(0x60);
-	readvalueREG = pcmTX.Read_(0x61);
-	readvalueREG = pcmTX.Read_(0x78);
-	readvalueREG = pcmTX.Read_(0x62);
+//	readvalueREG = pcmTX.Read_(0x40);
+//	readvalueREG = pcmTX.Read_(0x20);
+//	readvalueREG = pcmTX.Read_(0x24);
+//	readvalueREG = pcmTX.Read_(0x37);
+//	readvalueREG = pcmTX.Read_(0x60);
+//	readvalueREG = pcmTX.Read_(0x61);
+//	readvalueREG = pcmTX.Read_(0x78);
+//	readvalueREG = pcmTX.Read_(0x62);
 
 
-	current_route.route = &opt3;
+	current_route.route = &opt2;
 	current_route.state = ENABLE_OPT;
-	route_Control(SW_E_GPIO_Port, OPT3);
+	route_Control(SW_E_GPIO_Port, OPT2);
 
   /* USER CODE END 2 */
 
@@ -548,43 +602,45 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	  if(!ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == DISABLE_OPT))
-	  {
-		  // Start I2S2 in DMA mode (receive)
-		  pcmTX.PCM9211_Init(0);
 
-		  pcmRX.Channel_Buffers_Get();
-		  pcmTX.Channel_Buffers_Set();
-
-		  RXPCM_ERROR_flag = ENABLE_OPT;
-
-		  if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
-		  {
-			  // Initialization Error
-			  Error_Handler();
-		  }
-
-		  // Start I2S3 in DMA mode (transmit)
-		  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
-		  {
-			  // Initialization Error
-			  Error_Handler();
-		  }
-	  }
-	  else if(ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == ENABLE_OPT))
-	  {
-//		if (HAL_I2S_DMAStop(&hi2s2) != HAL_OK)
+//	  if(!ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == DISABLE_OPT))
+//	  {
+//		  // Start I2S2 in DMA mode (receive)
+//		  pcmTX.PCM9211_Init(0);
+//
+//		  pcmRX.Channel_Buffers_Get();
+//		  pcmTX.Channel_Buffers_Set();
+//
+//		  RXPCM_ERROR_flag = ENABLE_OPT;
+//
+//		  if (HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
+//		  {
+//			  // Initialization Error
+//			  Error_Handler();
+//		  }
+//
+//		  // Start I2S3 in DMA mode (transmit)
+//		  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)rxBuffer, NUM_FRAMES/2) != HAL_OK)
+//		  {
+//			  // Initialization Error
+//			  Error_Handler();
+//		  }
+//	  }
+//	  else if(ERROR_READ_RX_PCM && (RXPCM_ERROR_flag == ENABLE_OPT))
+//	  {
+////		if (HAL_I2S_DMAStop(&hi2s2) != HAL_OK)
+////		{
+////			Error_Handler();
+////		}
+//		if (HAL_I2S_DMAStop(&hi2s3) != HAL_OK)
 //		{
 //			Error_Handler();
 //		}
-		if (HAL_I2S_DMAStop(&hi2s3) != HAL_OK)
-		{
-			Error_Handler();
-		}
-		pcmTX.PCM9211_Init(1);
-		pcmRX.PCM9211_Init(0);			// check authenticity of this
-		RXPCM_ERROR_flag = DISABLE_OPT;
-	  }
+//		pcmTX.PCM9211_Init(1);
+//		pcmRX.PCM9211_Init(0);			// check authenticity of this
+//		RXPCM_ERROR_flag = DISABLE_OPT;
+//	  }
+
 
 
 	  npcm_int1 = HAL_GPIO_ReadPin(NPCM_INT1_R_GPIO_Port, NPCM_INT1_R_Pin);
@@ -596,6 +652,7 @@ int main(void)
 
 	  Sampling_Frequency_RX = pcmRX.PCM9211_SamplingFreq();
 	  Sampling_Frequency_TX = pcmTX.PCM9211_SamplingFreq();
+
 	  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
 	  HAL_Delay(500);
   }
@@ -719,7 +776,7 @@ static void MX_I2S3_Init(void)
   hi2s3.Init.Mode = I2S_MODE_MASTER_TX;
   hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
   hi2s3.Init.DataFormat = I2S_DATAFORMAT_24B;
-  hi2s3.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
+  hi2s3.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE; //I2S_MCLKOUTPUT_DISABLE;
   hi2s3.Init.AudioFreq = I2S_AUDIOFREQ_44K;
   hi2s3.Init.CPOL = I2S_CPOL_LOW;
   hi2s3.Init.ClockSource = I2S_CLOCK_PLL;
@@ -782,21 +839,31 @@ static void MX_TIM11_Init(void)
 
   /* USER CODE BEGIN TIM11_Init 0 */
   __HAL_RCC_TIM11_CLK_ENABLE();
+
+  uint32_t timer_clock_frequency = HAL_RCC_GetPCLK2Freq();
+  uint32_t prescaler_value = (timer_clock_frequency / 1000) - 1;		// 1ms timer increments
+  uint32_t period_value = ((OPT_TURNOFF_TIME * timer_clock_frequency)/(prescaler_value+1)) - 1;
   /* USER CODE END TIM11_Init 0 */
 
   /* USER CODE BEGIN TIM11_Init 1 */
 
   /* USER CODE END TIM11_Init 1 */
   htim11.Instance = TIM11;
-  htim11.Init.Prescaler = 15999;
+  htim11.Init.Prescaler = prescaler_value; //9999;
   htim11.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim11.Init.Period = 30000-1;
+  htim11.Init.Period = period_value; //41999;
   htim11.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim11.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim11) != HAL_OK)
   {
     Error_Handler();
   }
+
+//  if (HAL_TIM_OnePulse_Init(&htim11, TIM_OPMODE_SINGLE) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+
   /* USER CODE BEGIN TIM11_Init 2 */
   // Enable the TIM11 global interrupt
   TIM_Base_SetConfig(htim11.Instance, &htim11.Init);
@@ -815,41 +882,6 @@ static void MX_DMA_Init(void)
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
 //  __HAL_RCC_DMA2_CLK_ENABLE();
-//
-  /* DMA interrupt init */
-  // Configure DMA for I2S3_TX
-  hdma_spi2_rx.Instance = DMA1_Stream3;
-  hdma_spi2_rx.Init.Channel = DMA_CHANNEL_0;
-  hdma_spi2_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
-  hdma_spi2_rx.Init.PeriphInc = DMA_PINC_DISABLE;
-  hdma_spi2_rx.Init.MemInc = DMA_MINC_ENABLE;
-  hdma_spi2_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
-  hdma_spi2_rx.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-  hdma_spi2_rx.Init.Mode = DMA_CIRCULAR;//DMA_NORMAL;
-  hdma_spi2_rx.Init.Priority = DMA_PRIORITY_HIGH;
-  hdma_spi2_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-  if (HAL_DMA_Init(&hdma_spi2_rx) != HAL_OK)
-  {
-	  Error_Handler();
-  }
-  __HAL_LINKDMA(&hi2s2, hdmarx, hdma_spi2_rx);
-
-  // Configure DMA for I2S2_RX
-  hdma_spi3_tx.Instance = DMA1_Stream5;
-  hdma_spi3_tx.Init.Channel = DMA_CHANNEL_0;
-  hdma_spi3_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
-  hdma_spi3_tx.Init.PeriphInc = DMA_PINC_DISABLE;
-  hdma_spi3_tx.Init.MemInc = DMA_MINC_ENABLE;
-  hdma_spi3_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
-  hdma_spi3_tx.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-  hdma_spi3_tx.Init.Mode = DMA_CIRCULAR;
-  hdma_spi3_tx.Init.Priority = DMA_PRIORITY_HIGH;
-  hdma_spi3_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-  if (HAL_DMA_Init(&hdma_spi3_tx) != HAL_OK)
-  {
-	  Error_Handler();
-  }
-  __HAL_LINKDMA(&hi2s3, hdmatx, hdma_spi3_tx);
 
 
   /* DMA1_Stream0_IRQn interrupt configuration */
@@ -881,7 +913,8 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED5_Pin|LED6_Pin|LED7_Pin
-                          |LED8_Pin|SS_R_Pin|RESET_Pin|LED10_Pin
+//                          |LED8_Pin|SS_R_Pin|RESET_Pin|LED10_Pin
+                          |LED8_Pin|SS_R_Pin|RESET_Pin
                           |LED11_Pin|LED12_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -904,7 +937,7 @@ static void MX_GPIO_Init(void)
                            SW4_V__Pin SW4_V_C12_Pin */
   GPIO_InitStruct.Pin = SW2_S_Pin|SW2_V__Pin|SW2_V_C15_Pin|SW4_S_Pin
                           |SW4_V__Pin|SW4_V_C12_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
@@ -912,7 +945,8 @@ static void MX_GPIO_Init(void)
                            LED8_Pin SS_R_Pin RESET_Pin LED10_Pin
                            LED11_Pin LED12_Pin */
   GPIO_InitStruct.Pin = LED4_Pin|LED5_Pin|LED6_Pin|LED7_Pin
-                          |LED8_Pin|SS_R_Pin|RESET_Pin|LED10_Pin
+//                          |LED8_Pin|SS_R_Pin|RESET_Pin|LED10_Pin
+                          |LED8_Pin|SS_R_Pin|RESET_Pin
                           |LED11_Pin|LED12_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -921,7 +955,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : SW3_S_Pin SW3_V__Pin SW3_V_A2_Pin */
   GPIO_InitStruct.Pin = SW3_S_Pin|SW3_V__Pin|SW3_V_A2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
@@ -949,7 +983,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : SW1_S_Pin SW1_V__Pin SW1_V_B7_Pin */
   GPIO_InitStruct.Pin = SW1_S_Pin|SW1_V__Pin|SW1_V_B7_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
@@ -961,8 +995,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
-  HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED5_Pin|LED6_Pin|LED7_Pin
-                          |LED8_Pin||LED10_Pin
+//  HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED5_Pin|LED6_Pin|LED7_Pin|LED8_Pin|LED10_Pin
+  HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED5_Pin|LED6_Pin|LED7_Pin|LED8_Pin
                           |LED11_Pin|LED12_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
@@ -993,42 +1027,6 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
-
-//  GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-      /* I2S2 GPIO Configuration
-         PB12     ------> I2S2_WS
-         PB13     ------> I2S2_CK
-         PB15     ------> I2S2_SD
-         PC6      ------> I2S2_MCK
-      */
-      GPIO_InitStruct.Pin = I2S2_LRCK_Pin | I2S2_BCK_Pin | I2S2_DOUT_Pin;
-      GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-      GPIO_InitStruct.Pull = GPIO_NOPULL;
-      GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-      GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
-      HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-//      GPIO_InitStruct.Pin = GPIO_PIN_6;
-//      HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-      /* I2S3 GPIO Configuration
-         PA15     ------> I2S3_WS
-         PB3      ------> I2S3_CK
-         PB5      ------> I2S3_SD
-         PC7      ------> I2S3_MCK
-      */
-//      GPIO_InitStruct.Pin = GPIO_PIN_7;
-//      GPIO_InitStruct.Alternate = GPIO_AF6_SPI3;
-//      HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-      GPIO_InitStruct.Pin = I2S3_LRCK_Pin;
-      GPIO_InitStruct.Alternate = GPIO_AF6_SPI3;
-      HAL_GPIO_Init(I2S3_LRCK_GPIO_Port, &GPIO_InitStruct);
-
-      GPIO_InitStruct.Pin = I2S3_BCK_Pin | I2S3_DIN_Pin;
-      GPIO_InitStruct.Alternate = GPIO_AF6_SPI3;
-      HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
@@ -1048,8 +1046,8 @@ void Error_Handler(void)
 //  printf("Error was encountered from %p\r\n", __builtin_return_address(0));
   while (1)
   {
-	  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
-	  HAL_Delay(500);
+//	  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+//	  HAL_Delay(500);
   }
   /* USER CODE END Error_Handler_Debug */
 }

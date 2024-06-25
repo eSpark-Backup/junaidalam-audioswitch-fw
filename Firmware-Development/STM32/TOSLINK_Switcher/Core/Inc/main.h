@@ -114,8 +114,8 @@ void Error_Handler(void);
 #define I2S2_DOUT_GPIO_Port GPIOB
 #define RESET_Pin GPIO_PIN_6
 #define RESET_GPIO_Port GPIOC
-#define LED10_Pin GPIO_PIN_7
-#define LED10_GPIO_Port GPIOC
+#define I2S3_MCK_Pin GPIO_PIN_7
+#define I2S3_MCK_GPIO_Port GPIOC
 #define LED11_Pin GPIO_PIN_8
 #define LED11_GPIO_Port GPIOC
 #define LED12_Pin GPIO_PIN_9
