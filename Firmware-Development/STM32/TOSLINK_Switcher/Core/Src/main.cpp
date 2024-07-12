@@ -1,7 +1,7 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file           : main.c
+  * @file           : main.cpp
   * @brief          : Main program body
   ******************************************************************************
 / USER CODE END Header */
@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <PCM9211.hpp>
 //#include <pcm_data.h>					// for accessing the mp3_raw_pcm_array
+#include "fatfs.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -167,12 +168,13 @@ const int32_t txBuffer[] = {				// 512 members instead of 256 here, in DMA_Trans
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-I2S_HandleTypeDef hi2s2;
+//I2S_HandleTypeDef hi2s2;
 I2S_HandleTypeDef hi2s3;
-DMA_HandleTypeDef hdma_spi2_rx;										// I2S receive SPI
+//DMA_HandleTypeDef hdma_spi2_rx;										// I2S receive SPI
 DMA_HandleTypeDef hdma_spi3_tx;										// I2S transmit SPI
 
 SPI_HandleTypeDef hspi1;											// Communication SPI with PCM ICs
+SPI_HandleTypeDef hspi2;											// Communication SPI with SD Card
 TIM_HandleTypeDef htim11;											// Timer for OPT auto turnoff feature
 
 
@@ -184,6 +186,42 @@ volatile uint8_t RXdma_started = 0;							// disables false RxHalfCpltCallback a
 volatile uint8_t RXPCM_ERROR_flag = DISABLE_OPT;			// flag for activating TX PCM IC
 static	uint32_t last_interrupt_time = 0;					// Variable to manage the debounce logic
 static	uint32_t last_Led_toggle_time = 0;					// LED toggle time
+
+//SD CARD---------------------------------
+//some variables for FatFs
+FATFS FatFs; 	//Fatfs handle
+FIL fil;// = malloc(sizeof(FIL));; 		//File handle
+FRESULT fres; //Result after operations
+DWORD free_clusters, free_sectors, total_sectors;
+FATFS* getFreeFs;
+//BYTE readBuf[30];
+//UINT bytesWrote;
+UINT br;
+
+typedef struct {
+    char chunkID[4];
+    uint32_t chunkSize;
+    char format[4];
+    char subchunk1ID[4];
+    uint32_t subchunk1Size;
+    uint16_t audioFormat;
+    uint16_t numChannels;
+    uint32_t sampleRate;
+    uint32_t byteRate;
+    uint16_t blockAlign;
+    uint16_t bitsPerSample;
+    char subchunk2ID[4];
+    uint32_t subchunk2Size;
+} WAV_Header;
+
+WAV_Header wavHeader;
+
+#define AUDIO_BUFFER_SIZE 14336 //2048
+int16_t audioBuffer[AUDIO_BUFFER_SIZE];
+
+bool DMA_TX_half = false;
+bool DMA_TX_full = false;
+//SD CARD---------------------------------
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -191,8 +229,9 @@ void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
-static void MX_I2S2_Init(void);
+//static void MX_I2S2_Init(void);
 static void MX_I2S3_Init(void);
+static void MX_SPI2_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM11_Init(void);
 /* USER CODE BEGIN PFP */
@@ -201,10 +240,71 @@ void route_Control(GPIO_TypeDef* GPIOx, uint8_t config);
 void Timer_Control(STATES_t state);
 void Reset_Timer(TIM_HandleTypeDef *htim);					// not utilised
 void Led_Toggle(void);
+void Fill_Audio_Buffer(void);
+void Fill_Audio_Buffer_Half(void);
+void Fill_Audio_Buffer_Full(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void Fill_Audio_Buffer(void) {
+    UINT bytesRead;
+    for (int i = 0; i < AUDIO_BUFFER_SIZE; i++) {
+        if (f_read(&fil, &audioBuffer[i], wavHeader.bitsPerSample/8, &bytesRead) != FR_OK || bytesRead == 0) {
+            // Handle end of file or read error
+            break;
+        }
+    }
+//	if (f_read(&fil, audioBuffer, sizeof(audioBuffer), &br) != FR_OK) {
+//		// Handle read error
+//		Error_Handler();
+//	}
+//
+//	if (br == 0) {
+//		// Handle end of file
+//		f_lseek(&fil, sizeof(WAV_Header));  // Loop back to the start of audio data
+//		f_read(&fil, audioBuffer, sizeof(audioBuffer), &br);
+//	}
+}
+
+uint32_t half_time;
+uint32_t full_time;
+
+
+void Fill_Audio_Buffer_Half(void) {
+    // Fill the first half of the buffer
+    UINT bytesRead;
+    DMA_TX_half = false;
+    uint32_t current_time = HAL_GetTick(); // Get current time in milliseconds
+
+    for (int i = 0 ; i < AUDIO_BUFFER_SIZE/2 ; i++) {
+    	if(f_read(&fil, &audioBuffer[i], wavHeader.bitsPerSample/8, &bytesRead) != FR_OK || bytesRead == 0) {
+    		// Handle end of file or read error
+//			break;
+    		f_lseek(&fil, sizeof(WAV_Header));  // Loop back to the start of audio data
+			f_read(&fil, &audioBuffer[i], wavHeader.bitsPerSample/8, &bytesRead);
+    	}
+    }
+    	full_time = HAL_GetTick() - current_time;
+}
+
+void Fill_Audio_Buffer_Full(void) {
+    // Fill the second half of the buffer
+	UINT bytesRead;
+	DMA_TX_full = false;
+	uint32_t current_time = HAL_GetTick(); // Get current time in milliseconds
+
+	for (int i = AUDIO_BUFFER_SIZE/2 ; i < AUDIO_BUFFER_SIZE ; i++) {
+		if(f_read(&fil, &audioBuffer[i], wavHeader.bitsPerSample/8, &bytesRead) != FR_OK || bytesRead == 0) {
+		// Handle end of file or read error
+//			break;
+    		f_lseek(&fil, sizeof(WAV_Header));  // Loop back to the start of audio data
+			f_read(&fil, &audioBuffer[i], wavHeader.bitsPerSample/8, &bytesRead);
+		}
+	}
+		half_time = HAL_GetTick() - current_time;
+}
+
 void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
 {
     if (hi2s->Instance == SPI2)
@@ -281,12 +381,23 @@ void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s)
 //    }
 //}
 
+void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+    if (hi2s->Instance == SPI3)
+    {
+        // Transmission complete, ready for next transfer if needed
+        // For continuous transfer, you might reinitialize or handle buffer swapping here
+    	DMA_TX_half = true;
+    }
+}
+
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
 {
     if (hi2s->Instance == SPI3)
     {
         // Transmission complete, ready for next transfer if needed
         // For continuous transfer, you might reinitialize or handle buffer swapping here
+    	DMA_TX_full = true;
     }
 }
 
@@ -537,7 +648,7 @@ void Led_Toggle(void)
 	uint32_t current_time = HAL_GetTick(); // Get current time in milliseconds
 
 	// Check if the debounce period has passed
-	if ((current_time - last_Led_toggle_time) >= 500)
+	if ((current_time - last_Led_toggle_time) >= 2000)
 	{
 	  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
 	  last_Led_toggle_time = current_time;
@@ -587,12 +698,89 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_I2S2_Init();
+//  MX_I2S2_Init();
   MX_I2S3_Init();
   MX_SPI1_Init();
+  MX_SPI2_Init();
   MX_TIM11_Init();
   /* USER CODE BEGIN 2 */
+  MX_FATFS_Init();
   PCM9211_Reset();
+
+
+  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+  HAL_GPIO_TogglePin(GPIOA, LED2_Pin);
+  HAL_Delay(300);
+  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+  HAL_GPIO_TogglePin(GPIOA, LED2_Pin);
+
+  HAL_Delay(1000);
+
+  do{
+		fres = f_mount(&FatFs, "", 1); //1=mount now
+		//			if(fres == FR_DISK_ERR){
+			for(int i=0; i<fres; i++){
+			  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+				HAL_Delay(70);
+			  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+				HAL_Delay(70);
+			}
+		  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+			HAL_Delay(250);
+		  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+	}while(fres != FR_OK);
+
+	  HAL_GPIO_TogglePin(GPIOA, LED2_Pin);
+	  HAL_Delay(100);
+	  HAL_GPIO_TogglePin(GPIOA, LED2_Pin);
+
+    do{
+		fres = f_getfree("", &free_clusters, &getFreeFs);
+			for(int i=0; i<fres; i++){
+			  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+				HAL_Delay(30);
+			  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+				HAL_Delay(30);
+			}
+		  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+			HAL_Delay(250);
+		  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+	}while(fres != FR_OK);
+//
+//	//Formula comes from ChaN's documentation
+//	total_sectors = (getFreeFs->n_fatent - 2) * getFreeFs->csize;
+//	free_sectors = free_clusters * getFreeFs->csize;
+
+	do{
+		fres = f_open(&fil, "cha.wav", FA_READ);
+		for(int i=0; i<fres; i++){
+			  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+				HAL_Delay(30);
+			  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
+				HAL_Delay(30);
+			}
+		  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+			HAL_Delay(250);
+		  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+	}while(fres != FR_OK);
+
+	f_read(&fil, &wavHeader, sizeof(WAV_Header), &br);
+
+	HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+	HAL_GPIO_TogglePin(GPIOA, LED2_Pin);
+	HAL_Delay(1500);
+	HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+	HAL_GPIO_TogglePin(GPIOA, LED2_Pin);
+
+	// Fill initial buffer
+	Fill_Audio_Buffer();
+
+
+	//We're done, so de-mount the drive
+//	f_mount(NULL, "", 0);
+
 
 
 //  int index = 0;
@@ -610,12 +798,12 @@ int main(void)
 
 
 
-  // Initialize PCM Receiver ICs
-  if(pcmRX.PCM9211_Init(PCM_INITIALIZE))
-  {
-	  // Initialization Error
-	  Error_Handler();
-  }
+//  // Initialize PCM Receiver ICs
+//  if(pcmRX.PCM9211_Init(PCM_INITIALIZE))
+//  {
+//	  // Initialization Error
+//	  Error_Handler();
+//  }
   // Initialize PCM Transmitter ICs
   if(pcmTX.PCM9211_Init(PCM_INITIALIZE))
   {
@@ -631,8 +819,8 @@ int main(void)
 //	  Error_Handler();
 //  }
 
-  // Start I2S3 in DMA mode (transmit)
-  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)txBuffer, NUM_FRAMES) != HAL_OK)
+//   Start I2S3 in DMA mode (transmit)
+  if (HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)audioBuffer, AUDIO_BUFFER_SIZE) != HAL_OK)
   {
 	  // Initialization Error
 	  Error_Handler();
@@ -714,17 +902,25 @@ int main(void)
 
 
 
-	  npcm_int1 = HAL_GPIO_ReadPin(NPCM_INT1_R_GPIO_Port, NPCM_INT1_R_Pin);
-	  error_int0 = ERROR_READ_RX_PCM;
-	  if(!error_int0)
-	  {
-		  pcmRX.Channel_Buffers_Get();
-	  }
-
-	  Sampling_Frequency_RX = pcmRX.PCM9211_SamplingFreq();
-	  Sampling_Frequency_TX = pcmTX.PCM9211_SamplingFreq();
+//	  npcm_int1 = HAL_GPIO_ReadPin(NPCM_INT1_R_GPIO_Port, NPCM_INT1_R_Pin);
+//	  error_int0 = ERROR_READ_RX_PCM;
+//	  if(!error_int0)
+//	  {
+//		  pcmRX.Channel_Buffers_Get();
+//	  }
+//
+//	  Sampling_Frequency_RX = pcmRX.PCM9211_SamplingFreq();
+//	  Sampling_Frequency_TX = pcmTX.PCM9211_SamplingFreq();
 
 	  Led_Toggle();
+	  if(DMA_TX_half)
+	  {
+		  Fill_Audio_Buffer_Half();
+	  }
+	  if(DMA_TX_full)
+	  {
+		  Fill_Audio_Buffer_Full();
+	  }
 //	  HAL_GPIO_TogglePin(COP_GPIO_Port, COP_Pin);
 //	  HAL_Delay(500);
   }
@@ -761,19 +957,32 @@ void SystemClock_Config(void)
 	    Error_Handler();
 	  }
 
-	  /** Initializes the CPU, AHB and APB buses clocks
-	  */
-	  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-	                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-	  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-	  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV4;
-	  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-	  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+//	  /** Initializes the CPU, AHB and APB buses clocks
+//	  */
+//	  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+//	                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+//	  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+//	  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV4;
+//	  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+//	  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+//
+//	  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+//	  {
+//	    Error_Handler();
+//	  }
+  /** Initializes the CPU, AHB and APB buses clocks
+	*/
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+								|RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-	  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-	  {
-	    Error_Handler();
-	  }
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+	{
+	  Error_Handler();
+	}
 }
 
 /**
@@ -800,34 +1009,34 @@ void PeriphCommonClock_Config(void)
   * @param None
   * @retval None
   */
-static void MX_I2S2_Init(void)
-{
-
-  /* USER CODE BEGIN I2S2_Init 0 */
-
-  /* USER CODE END I2S2_Init 0 */
-
-  /* USER CODE BEGIN I2S2_Init 1 */
-
-  /* USER CODE END I2S2_Init 1 */
-  hi2s2.Instance = SPI2;
-  hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
-  hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
-  hi2s2.Init.DataFormat = I2S_DATAFORMAT_24B;
-  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
-  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_44K;
-  hi2s2.Init.CPOL = I2S_CPOL_LOW;
-  hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
-  hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
-  if (HAL_I2S_Init(&hi2s2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2S2_Init 2 */
-
-  /* USER CODE END I2S2_Init 2 */
-
-}
+//static void MX_I2S2_Init(void)
+//{
+//
+//  /* USER CODE BEGIN I2S2_Init 0 */
+//
+//  /* USER CODE END I2S2_Init 0 */
+//
+//  /* USER CODE BEGIN I2S2_Init 1 */
+//
+//  /* USER CODE END I2S2_Init 1 */
+//  hi2s2.Instance = SPI2;
+//  hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
+//  hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
+//  hi2s2.Init.DataFormat = I2S_DATAFORMAT_24B;
+//  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
+//  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_44K;
+//  hi2s2.Init.CPOL = I2S_CPOL_LOW;
+//  hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
+//  hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
+//  if (HAL_I2S_Init(&hi2s2) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//  /* USER CODE BEGIN I2S2_Init 2 */
+//
+//  /* USER CODE END I2S2_Init 2 */
+//
+//}
 
 /**
   * @brief I2S3 Initialization Function
@@ -847,7 +1056,7 @@ static void MX_I2S3_Init(void)
   hi2s3.Instance = SPI3;
   hi2s3.Init.Mode = I2S_MODE_MASTER_TX;
   hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
-  hi2s3.Init.DataFormat = I2S_DATAFORMAT_24B;
+  hi2s3.Init.DataFormat = I2S_DATAFORMAT_16B_EXTENDED;//I2S_DATAFORMAT_24B;
   hi2s3.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE; //I2S_MCLKOUTPUT_DISABLE;
   hi2s3.Init.AudioFreq = I2S_AUDIOFREQ_44K;
   hi2s3.Init.CPOL = I2S_CPOL_LOW;
@@ -898,6 +1107,44 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
+  * @brief SPI2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI2_Init(void)
+{
+
+  /* USER CODE BEGIN SPI2_Init 0 */
+
+  /* USER CODE END SPI2_Init 0 */
+
+  /* USER CODE BEGIN SPI2_Init 1 */
+
+  /* USER CODE END SPI2_Init 1 */
+  /* SPI2 parameter configuration*/
+  hspi2.Instance = SPI2;
+  hspi2.Init.Mode = SPI_MODE_MASTER;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.NSS = SPI_NSS_SOFT;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi2.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI2_Init 2 */
+
+  /* USER CODE END SPI2_Init 2 */
 
 }
 
@@ -956,12 +1203,12 @@ static void MX_DMA_Init(void)
 //  __HAL_RCC_DMA2_CLK_ENABLE();
 
 
-  /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
+//  /* DMA1_Stream0_IRQn interrupt configuration */
+//  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
+//  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
   /* DMA1_Stream4_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
+  HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
 
 }
 
@@ -984,7 +1231,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOH_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED5_Pin|LED6_Pin|LED7_Pin
+  HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED5_Pin|LED7_Pin
 //                          |LED8_Pin|SS_R_Pin|RESET_Pin|LED10_Pin
                           |LED8_Pin|SS_R_Pin|RESET_Pin
                           |LED11_Pin|LED12_Pin, GPIO_PIN_RESET);
@@ -1016,7 +1263,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pins : LED4_Pin LED5_Pin LED6_Pin LED7_Pin
                            LED8_Pin SS_R_Pin RESET_Pin LED10_Pin
                            LED11_Pin LED12_Pin */
-  GPIO_InitStruct.Pin = LED4_Pin|LED5_Pin|LED6_Pin|LED7_Pin
+  GPIO_InitStruct.Pin = LED4_Pin|LED5_Pin|LED7_Pin
 //                          |LED8_Pin|SS_R_Pin|RESET_Pin|LED10_Pin
                           |LED8_Pin|SS_R_Pin|RESET_Pin
                           |LED11_Pin|LED12_Pin;
@@ -1060,7 +1307,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED3_Pin COP_Pin */
-  GPIO_InitStruct.Pin = LED3_Pin|COP_Pin;
+  GPIO_InitStruct.Pin = SDCard_CS_Pin|LED3_Pin|COP_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1068,17 +1315,20 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 //  HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED5_Pin|LED6_Pin|LED7_Pin|LED8_Pin|LED10_Pin
-  HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED5_Pin|LED6_Pin|LED7_Pin|LED8_Pin
+  HAL_GPIO_WritePin(GPIOC, LED4_Pin|LED5_Pin|LED7_Pin|LED8_Pin
                           |LED11_Pin|LED12_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LED9_Pin|LED2_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOA, LED9_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
+//  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LED3_Pin, GPIO_PIN_SET);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  HAL_GPIO_WritePin(SDCard_CS_GPIO_Port, SDCard_CS_Pin, GPIO_PIN_SET);
 
   /* EXTI interrupt init*/
   HAL_NVIC_EnableIRQ(EXTI0_IRQn);

@@ -59,11 +59,10 @@ void EXTI0_IRQHandler(void);
 void EXTI1_IRQHandler(void);
 void EXTI2_IRQHandler(void);
 void EXTI4_IRQHandler(void);
-void DMA1_Stream3_IRQHandler(void);
-void DMA1_Stream5_IRQHandler(void);
 void EXTI9_5_IRQHandler(void);
 void TIM1_TRG_COM_TIM11_IRQHandler(void);
 void EXTI15_10_IRQHandler(void);
+void DMA1_Stream7_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */

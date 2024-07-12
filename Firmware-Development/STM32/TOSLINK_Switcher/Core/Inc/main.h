@@ -46,7 +46,7 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-
+#define SD_SPI_HANDLE hspi2
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
@@ -71,8 +71,6 @@ void Error_Handler(void);
 #define LED4_GPIO_Port GPIOC
 #define LED5_Pin GPIO_PIN_1
 #define LED5_GPIO_Port GPIOC
-#define LED6_Pin GPIO_PIN_2
-#define LED6_GPIO_Port GPIOC
 #define LED7_Pin GPIO_PIN_3
 #define LED7_GPIO_Port GPIOC
 #define SW3_S_Pin GPIO_PIN_0
@@ -106,12 +104,8 @@ void Error_Handler(void);
 #define NPCM_INT1_R_GPIO_Port GPIOB
 #define ERROR_INT0_R_Pin GPIO_PIN_10
 #define ERROR_INT0_R_GPIO_Port GPIOB
-#define I2S2_LRCK_Pin GPIO_PIN_12
-#define I2S2_LRCK_GPIO_Port GPIOB
-#define I2S2_BCK_Pin GPIO_PIN_13
-#define I2S2_BCK_GPIO_Port GPIOB
-#define I2S2_DOUT_Pin GPIO_PIN_15
-#define I2S2_DOUT_GPIO_Port GPIOB
+#define SDCard_CS_Pin GPIO_PIN_12
+#define SDCard_CS_GPIO_Port GPIOB
 #define RESET_Pin GPIO_PIN_6
 #define RESET_GPIO_Port GPIOC
 #define I2S3_MCK_Pin GPIO_PIN_7
